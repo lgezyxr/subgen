@@ -1,0 +1,29 @@
+# Core dependencies
+pyyaml>=6.0
+click>=8.0
+rich>=13.0
+httpx>=0.25.0
+
+# Audio processing
+ffmpeg-python>=0.2.0
+
+# Subtitle handling
+pysubs2>=1.6.0
+
+# OpenAI API
+openai>=1.0.0
+
+# Anthropic Claude API
+anthropic>=0.18.0
+
+# Optional: Local Whisper (uncomment to install)
+# faster-whisper>=1.0.0
+# torch>=2.0.0
+
+# Optional: Groq API
+groq>=0.4.0
+
+# Development
+pytest>=7.0.0
+black>=23.0.0
+ruff>=0.1.0

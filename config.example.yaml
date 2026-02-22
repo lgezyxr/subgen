@@ -1,0 +1,78 @@
+# SubGen 配置文件
+# 复制为 config.yaml 并填入你的 API Keys
+
+# ============================================
+# 语音识别配置 (Whisper)
+# ============================================
+whisper:
+  # 提供商选择: local | openai | groq
+  provider: "openai"
+  
+  # 模型选择 (本地模式)
+  # tiny | base | small | medium | large-v3
+  local_model: "large-v3"
+  
+  # 设备 (本地模式): cuda | cpu
+  device: "cuda"
+  
+  # API Keys (按需填写)
+  openai_key: ""      # OpenAI API Key (sk-...)
+  groq_key: ""        # Groq API Key (gsk_...)
+
+# ============================================
+# 翻译配置 (LLM)
+# ============================================
+translation:
+  # 提供商选择: openai | claude | deepseek | ollama | github-copilot
+  provider: "openai"
+  
+  # 模型选择
+  model: "gpt-4o-mini"  # 性价比推荐
+  # model: "gpt-4o"     # 质量最好
+  # model: "deepseek-chat"  # 中文优化
+  
+  # API 配置
+  api_key: ""         # API Key
+  base_url: ""        # 自定义 API 地址 (可选)
+  
+  # Ollama 配置 (本地 LLM)
+  ollama_host: "http://localhost:11434"
+  ollama_model: "qwen2.5:14b"
+
+# ============================================
+# 输出配置
+# ============================================
+output:
+  # 字幕格式: srt | ass | vtt
+  format: "srt"
+  
+  # 目标语言 (翻译目标)
+  target_language: "zh"  # zh | ja | ko | en | ...
+  
+  # 双语字幕 (原文 + 译文)
+  bilingual: false
+  
+  # 每行最大字符数 (字幕排版)
+  max_chars_per_line: 42
+  
+  # 是否烧录进视频
+  embed_in_video: false
+
+# ============================================
+# 高级配置
+# ============================================
+advanced:
+  # 翻译批次大小 (一次翻译多少条字幕)
+  translation_batch_size: 20
+  
+  # 翻译时包含的上下文条数
+  translation_context_size: 5
+  
+  # 临时文件目录
+  temp_dir: "./temp"
+  
+  # 是否保留中间文件 (调试用)
+  keep_temp_files: false
+  
+  # 日志级别: DEBUG | INFO | WARNING | ERROR
+  log_level: "INFO"
