@@ -47,6 +47,24 @@ TRANSLATION_USER_PROMPT = """Please translate the following {count} subtitles (o
 {subtitles}
 """
 
+# Sentence-aware translation prompt
+SENTENCE_TRANSLATION_PROMPT = """You are a professional subtitle translator. Translate {source_lang} to {target_lang}.
+
+The following is ONE complete sentence that spans {num_parts} subtitle segments.
+Translate it naturally, then split your translation into exactly {num_parts} parts.
+
+Requirements:
+1. Translate the COMPLETE sentence first for accuracy
+2. Then split into {num_parts} parts at natural break points
+3. Each part should be ≤{max_chars} characters
+4. Parts should flow naturally when read in sequence
+
+Original sentence (split across {num_parts} segments):
+{sentence}
+
+Output exactly {num_parts} lines, one translation part per line:
+"""
+
 
 def _get_rules_dir() -> Path:
     """Get translation rules directory"""
@@ -221,6 +239,229 @@ def translate_segments(
             progress_callback(len(batch))
 
     return translated_segments
+
+
+def _group_segments_by_sentence(segments: List[Segment]) -> List[List[Segment]]:
+    """
+    Group segments by sentence boundaries.
+    
+    Segments not ending with sentence-ending punctuation are grouped
+    with following segments until a sentence end is found.
+    
+    Returns:
+        List of segment groups, where each group forms a complete sentence
+    """
+    import re
+    sentence_end = re.compile(r'[.!?。！？…][\s"\'）\)]*$')
+    
+    groups = []
+    current_group = []
+    
+    for seg in segments:
+        current_group.append(seg)
+        text = seg.text.strip()
+        
+        # Check if this segment ends a sentence
+        if sentence_end.search(text) or not text:
+            if current_group:
+                groups.append(current_group)
+                current_group = []
+    
+    # Don't forget remaining segments
+    if current_group:
+        groups.append(current_group)
+    
+    return groups
+
+
+def translate_segments_sentence_aware(
+    segments: List[Segment],
+    config: Dict[str, Any],
+    translate_fn: Callable,
+    progress_callback: Optional[Callable[[int], None]] = None
+) -> List[Segment]:
+    """
+    Translate segments with sentence awareness.
+    
+    Groups segments into complete sentences, translates each sentence,
+    and lets the LLM decide how to split the translation.
+    """
+    if not segments:
+        return segments
+    
+    source_lang = config.get('output', {}).get('source_language', 'auto')
+    target_lang = config.get('output', {}).get('target_language', 'zh')
+    max_chars = config.get('output', {}).get('max_chars_per_line', 40)
+    
+    # Group segments by sentence
+    groups = _group_segments_by_sentence(segments)
+    
+    translated_segments = []
+    
+    for group in groups:
+        num_parts = len(group)
+        
+        if num_parts == 1:
+            # Single segment - translate normally
+            seg = group[0]
+            try:
+                translations = translate_fn(
+                    [seg.text],
+                    source_lang,
+                    target_lang,
+                    max_chars,
+                    config
+                )
+                seg.translated = translations[0] if translations else seg.text
+            except Exception as e:
+                print(f"Translation failed: {e}")
+                seg.translated = seg.text
+            translated_segments.append(seg)
+        else:
+            # Multiple segments - use sentence-aware prompt
+            merged_text = " ".join(seg.text.strip() for seg in group)
+            
+            prompt = SENTENCE_TRANSLATION_PROMPT.format(
+                source_lang=_get_lang_name(source_lang),
+                target_lang=_get_lang_name(target_lang),
+                num_parts=num_parts,
+                max_chars=max_chars,
+                sentence=merged_text
+            )
+            
+            try:
+                # Call LLM with the sentence-aware prompt
+                translations = _translate_sentence_group(
+                    prompt,
+                    num_parts,
+                    config
+                )
+                
+                # Assign translations to segments
+                for idx, seg in enumerate(group):
+                    if idx < len(translations):
+                        seg.translated = translations[idx].strip()
+                    else:
+                        seg.translated = seg.text
+                    translated_segments.append(seg)
+                    
+            except Exception as e:
+                print(f"Sentence translation failed: {e}")
+                # Fallback: keep original text
+                for seg in group:
+                    seg.translated = seg.text
+                    translated_segments.append(seg)
+        
+        if progress_callback:
+            progress_callback(len(group))
+    
+    return translated_segments
+
+
+def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str, Any]) -> List[str]:
+    """
+    Translate a sentence group using the configured LLM provider.
+    """
+    import requests
+    
+    provider = config.get('translation', {}).get('provider', 'openai')
+    
+    if provider == 'openai':
+        api_key = config.get('translation', {}).get('api_key')
+        model = config.get('translation', {}).get('model', 'gpt-4o-mini')
+        
+        response = requests.post(
+            'https://api.openai.com/v1/chat/completions',
+            headers={'Authorization': f'Bearer {api_key}'},
+            json={
+                'model': model,
+                'messages': [{'role': 'user', 'content': prompt}],
+                'temperature': 0.3,
+            },
+            timeout=60
+        )
+        response.raise_for_status()
+        result = response.json()['choices'][0]['message']['content']
+        
+    elif provider == 'deepseek':
+        api_key = config.get('translation', {}).get('api_key')
+        model = config.get('translation', {}).get('model', 'deepseek-chat')
+        
+        response = requests.post(
+            'https://api.deepseek.com/chat/completions',
+            headers={'Authorization': f'Bearer {api_key}'},
+            json={
+                'model': model,
+                'messages': [{'role': 'user', 'content': prompt}],
+                'temperature': 0.3,
+            },
+            timeout=60
+        )
+        response.raise_for_status()
+        result = response.json()['choices'][0]['message']['content']
+        
+    elif provider == 'chatgpt':
+        from .auth.openai_codex import get_openai_codex_token
+        access_token, account_id = get_openai_codex_token()
+        model = config.get('translation', {}).get('model', 'gpt-4o')
+        
+        response = requests.post(
+            "https://chatgpt.com/backend-api/conversation",
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+                "chatgpt-account-id": account_id,
+            },
+            json={
+                "action": "next",
+                "messages": [{
+                    "id": f"msg-{int(time.time())}",
+                    "author": {"role": "user"},
+                    "content": {"content_type": "text", "parts": [prompt]}
+                }],
+                "model": model,
+                "history_and_training_disabled": True,
+            },
+            timeout=120,
+            stream=True
+        )
+        
+        result = ""
+        for line in response.iter_lines():
+            if not line:
+                continue
+            line = line.decode('utf-8')
+            if line.startswith('data: '):
+                data = line[6:]
+                if data == '[DONE]':
+                    break
+                try:
+                    event = json.loads(data)
+                    if 'message' in event:
+                        msg = event['message']
+                        if msg.get('author', {}).get('role') == 'assistant':
+                            parts = msg.get('content', {}).get('parts', [])
+                            if parts:
+                                result = parts[0]
+                except json.JSONDecodeError:
+                    continue
+    else:
+        raise ValueError(f"Sentence-aware translation not yet supported for provider: {provider}")
+    
+    # Parse result into lines
+    lines = [line.strip() for line in result.strip().split('\n') if line.strip()]
+    
+    # Remove numbering if present (1. xxx, 1) xxx, etc.)
+    cleaned = []
+    for line in lines:
+        if line and line[0].isdigit():
+            for sep in ['. ', ') ', ': ', '、', '．']:
+                if sep in line[:5]:
+                    line = line.split(sep, 1)[-1]
+                    break
+        cleaned.append(line)
+    
+    return cleaned[:expected_parts]
 
 
 def _parse_translations(result_text: str, expected_count: int) -> List[str]:
