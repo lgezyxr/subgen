@@ -39,13 +39,14 @@ def cli():
 @click.option('--output', '-o', type=click.Path(), help='Output subtitle file path')
 @click.option('--from', '-f', 'source_lang', default=None, help='Source language (e.g., en, es, ja). Auto-detect if not specified')
 @click.option('--to', '-t', 'target_lang', default=None, help='Target translation language (e.g., zh, ja, ko)')
+@click.option('--no-translate', is_flag=True, help='Skip translation, output transcription only')
 @click.option('--bilingual', '-b', is_flag=True, help='Generate bilingual subtitles')
 @click.option('--whisper-provider', type=click.Choice(['local', 'mlx', 'openai', 'groq']), help='Override Whisper provider from config')
 @click.option('--llm-provider', type=click.Choice(['openai', 'claude', 'deepseek', 'ollama', 'copilot', 'chatgpt']), help='Override LLM provider from config')
 @click.option('--embed', is_flag=True, help='Burn subtitles into video')
 @click.option('--config', '-c', type=click.Path(), default='config.yaml', help='Config file path')
 @click.option('--verbose', '-v', is_flag=True, help='Show verbose logs')
-def run(input_path, output, source_lang, target_lang, bilingual, whisper_provider, llm_provider, embed, config, verbose):
+def run(input_path, output, source_lang, target_lang, no_translate, bilingual, whisper_provider, llm_provider, embed, config, verbose):
     """
     Generate subtitles for a video file.
 
@@ -64,12 +65,12 @@ def run(input_path, output, source_lang, target_lang, bilingual, whisper_provide
         subgen run movie.mp4 --from en --to zh --bilingual
     """
     run_subtitle_generation(
-        input_path, output, source_lang, target_lang,
+        input_path, output, source_lang, target_lang, no_translate,
         bilingual, whisper_provider, llm_provider, embed, config, verbose
     )
 
 
-def run_subtitle_generation(input_path, output, source_lang, target_lang,
+def run_subtitle_generation(input_path, output, source_lang, target_lang, no_translate,
                            bilingual, whisper_provider, llm_provider, embed, config, verbose):
     """Main subtitle generation logic."""
     from src.config import load_config
@@ -201,14 +202,21 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang,
                 raise SystemExit(0)
             progress.update(task2, completed=True, description=f"[green]✓ Transcribed ({len(segments)} segments)")
 
-            # Step 3: Translation
-            task3 = progress.add_task("[cyan]Translating...", total=len(segments))
-            translated_segments = translate_segments(
-                segments,
-                cfg,
-                progress_callback=lambda n: progress.update(task3, advance=n)
-            )
-            progress.update(task3, completed=len(segments), description="[green]✓ Translation complete")
+            # Step 3: Translation (skip if --no-translate)
+            if no_translate:
+                translated_segments = segments
+                # Set translated to original text for subtitle generation
+                for seg in translated_segments:
+                    seg.translated = seg.text
+                progress.add_task("[dim]Skipping translation...", total=None)
+            else:
+                task3 = progress.add_task("[cyan]Translating...", total=len(segments))
+                translated_segments = translate_segments(
+                    segments,
+                    cfg,
+                    progress_callback=lambda n: progress.update(task3, advance=n)
+                )
+                progress.update(task3, completed=len(segments), description="[green]✓ Translation complete")
 
             # Step 4: Generate subtitles
             task4 = progress.add_task("[cyan]Generating subtitles...", total=None)
