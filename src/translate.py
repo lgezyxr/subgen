@@ -167,6 +167,8 @@ def translate_segments(
         translate_fn = _translate_deepseek
     elif provider == 'ollama':
         translate_fn = _translate_ollama
+    elif provider == 'copilot':
+        translate_fn = _translate_copilot
     else:
         raise ValueError(f"Unsupported translation provider: {provider}")
 
@@ -438,6 +440,73 @@ def _translate_ollama(
 
     result = response.json()
     result_text = result['message']['content'].strip()
+    return _parse_translations(result_text, len(texts))
+
+
+def _translate_copilot(
+    texts: List[str],
+    source_lang: str,
+    target_lang: str,
+    max_chars: int,
+    config: Dict[str, Any]
+) -> List[str]:
+    """Translate using GitHub Copilot API"""
+    import requests
+    from .auth.copilot import get_copilot_api_token, CopilotAuthError, copilot_login
+
+    # Get Copilot token (will refresh if needed)
+    try:
+        token = get_copilot_api_token()
+    except CopilotAuthError as e:
+        # Not logged in, try interactive login
+        print(f"\n⚠️  {e}")
+        print("Starting Copilot login...\n")
+        try:
+            copilot_login()
+            token = get_copilot_api_token()
+        except CopilotAuthError as e2:
+            raise ValueError(f"Copilot authentication failed: {e2}")
+
+    system_prompt = _build_system_prompt(
+        _get_lang_name(source_lang),
+        _get_lang_name(target_lang),
+        max_chars,
+        target_lang
+    )
+
+    user_prompt = TRANSLATION_USER_PROMPT.format(
+        count=len(texts),
+        subtitles="\n".join(texts)
+    )
+
+    # Call Copilot API (OpenAI-compatible)
+    response = requests.post(
+        "https://api.githubcopilot.com/chat/completions",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Editor-Version": "subgen/0.1.0",
+            "Editor-Plugin-Version": "subgen/0.1.0",
+            "Copilot-Integration-Id": "subgen",
+        },
+        json={
+            "model": "gpt-4o",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "temperature": 0.3,
+        },
+        timeout=60
+    )
+
+    if response.status_code == 401:
+        raise ValueError("Copilot token expired. Please run: subgen auth login copilot")
+
+    response.raise_for_status()
+
+    result = response.json()
+    result_text = result['choices'][0]['message']['content'].strip()
     return _parse_translations(result_text, len(texts))
 
 

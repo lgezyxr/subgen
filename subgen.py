@@ -4,56 +4,77 @@ SubGen - AI-powered subtitle generation tool
 Main entry point
 """
 
-import sys
 import click
 from pathlib import Path
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
 
-from src.config import load_config
-from src.audio import extract_audio, cleanup_temp_files, check_ffmpeg
-from src.transcribe import transcribe_audio
-from src.translate import translate_segments
-from src.subtitle import generate_subtitle, embed_subtitle
-
 console = Console()
 
 
-@click.command()
-@click.argument('input_path', type=click.Path(exists=True))
+@click.group(invoke_without_command=True)
+@click.pass_context
+@click.argument('input_path', type=click.Path(exists=True), required=False)
 @click.option('--output', '-o', type=click.Path(), help='Output subtitle file path')
 @click.option('--from', '-f', 'source_lang', default=None, help='Source language (e.g., en, es, ja). Auto-detect if not specified')
 @click.option('--to', '-t', 'target_lang', default=None, help='Target translation language (e.g., zh, ja, ko)')
 @click.option('--bilingual', '-b', is_flag=True, help='Generate bilingual subtitles')
 @click.option('--whisper-provider', type=click.Choice(['local', 'openai', 'groq']), help='Override Whisper provider from config')
-@click.option('--llm-provider', type=click.Choice(['openai', 'claude', 'deepseek', 'ollama']), help='Override LLM provider from config')
+@click.option('--llm-provider', type=click.Choice(['openai', 'claude', 'deepseek', 'ollama', 'copilot']), help='Override LLM provider from config')
 @click.option('--embed', is_flag=True, help='Burn subtitles into video')
 @click.option('--config', '-c', type=click.Path(), default='config.yaml', help='Config file path')
 @click.option('--verbose', '-v', is_flag=True, help='Show verbose logs')
-def main(input_path, output, source_lang, target_lang, bilingual, whisper_provider, llm_provider, embed, config, verbose):
+def cli(ctx, input_path, output, source_lang, target_lang, bilingual, whisper_provider, llm_provider, embed, config, verbose):
     """
     SubGen - AI-powered subtitle generation tool
 
     Extract audio from video, transcribe with AI, translate, and generate subtitles.
 
-    Examples:
+    \b
+    COMMANDS:
+        subgen init           Run setup wizard
+        subgen auth login     Login to OAuth providers (e.g., copilot)
+        subgen auth logout    Logout from providers
+        subgen auth status    Show login status
 
     \b
+    EXAMPLES:
         # Basic usage (auto-detect source, translate to Chinese)
         python subgen.py movie.mp4
 
         # Specify source and target language
         python subgen.py movie.mp4 --from en --to zh
 
-        # Spanish to Japanese
-        python subgen.py movie.mp4 -f es -t ja
+        # Use GitHub Copilot for translation
+        python subgen.py movie.mp4 --from en --to zh --llm-provider copilot
 
         # Generate bilingual subtitles
         python subgen.py movie.mp4 --from en --to zh --bilingual
-
-        # Use local Whisper
-        python subgen.py movie.mp4 -f en -t zh --whisper-provider local
     """
+    # If a subcommand is invoked, skip main processing
+    if ctx.invoked_subcommand is not None:
+        return
+
+    # If no input file provided, show help
+    if not input_path:
+        click.echo(ctx.get_help())
+        return
+
+    # Run main subtitle generation
+    run_subtitle_generation(
+        input_path, output, source_lang, target_lang,
+        bilingual, whisper_provider, llm_provider, embed, config, verbose
+    )
+
+
+def run_subtitle_generation(input_path, output, source_lang, target_lang,
+                           bilingual, whisper_provider, llm_provider, embed, config, verbose):
+    """Main subtitle generation logic."""
+    from src.config import load_config
+    from src.audio import extract_audio, cleanup_temp_files, check_ffmpeg
+    from src.transcribe import transcribe_audio
+    from src.translate import translate_segments
+    from src.subtitle import generate_subtitle, embed_subtitle
 
     input_path = Path(input_path)
 
@@ -79,10 +100,19 @@ def main(input_path, output, source_lang, target_lang, bilingual, whisper_provid
                 config_path = alt
                 break
         else:
-            console.print("[red]Error: Config file not found[/red]")
-            console.print("Please copy config.example.yaml to config.yaml and add your API keys:")
-            console.print("  cp config.example.yaml config.yaml")
-            raise SystemExit(1)
+            # No config found, offer to run setup wizard
+            console.print("[yellow]No config file found.[/yellow]\n")
+            if click.confirm("Would you like to run the setup wizard?", default=True):
+                run_init_wizard(config)
+                # Reload config after wizard
+                config_path = Path(config)
+                if not config_path.exists():
+                    console.print("[red]Setup was not completed.[/red]")
+                    raise SystemExit(1)
+            else:
+                console.print("Please copy config.example.yaml to config.yaml and add your API keys:")
+                console.print("  cp config.example.yaml config.yaml")
+                raise SystemExit(1)
 
     try:
         cfg = load_config(str(config_path))
@@ -95,6 +125,10 @@ def main(input_path, output, source_lang, target_lang, bilingual, whisper_provid
     cfg.setdefault('translation', {})
     cfg.setdefault('output', {})
     cfg.setdefault('advanced', {})
+
+    # Support both 'llm' and 'translation' config keys
+    if 'llm' in cfg and 'translation' not in cfg:
+        cfg['translation'] = cfg['llm']
 
     # CLI arguments override config
     if whisper_provider:
@@ -111,7 +145,7 @@ def main(input_path, output, source_lang, target_lang, bilingual, whisper_provid
     if embed:
         cfg['output']['embed_in_video'] = True
 
-    # Sync language settings: if only one place has source language set, sync to the other
+    # Sync language settings
     whisper_source = cfg['whisper'].get('source_language', 'auto')
     output_source = cfg['output'].get('source_language', 'auto')
     if whisper_source != 'auto' and output_source == 'auto':
@@ -130,7 +164,7 @@ def main(input_path, output, source_lang, target_lang, bilingual, whisper_provid
         suffix = f".{cfg['output'].get('format', 'srt')}"
         output_path = input_path.with_suffix(suffix)
 
-    console.print(f"\n[bold blue]🎬 SubGen - AI Subtitle Generator[/bold blue]\n")
+    console.print("\n[bold blue]🎬 SubGen - AI Subtitle Generator[/bold blue]\n")
     console.print(f"Input: [cyan]{input_path}[/cyan]")
     console.print(f"Output: [cyan]{output_path}[/cyan]")
     console.print(f"Whisper: [yellow]{cfg['whisper'].get('provider', 'local')}[/yellow]")
@@ -186,7 +220,7 @@ def main(input_path, output, source_lang, target_lang, bilingual, whisper_provid
                 embed_subtitle(input_path, output_path, video_output, cfg)
                 progress.update(task5, completed=True, description="[green]✓ Video generated")
 
-        console.print(f"\n[bold green]✅ Done![/bold green]")
+        console.print("\n[bold green]✅ Done![/bold green]")
         console.print(f"Subtitle file: [cyan]{output_path}[/cyan]")
 
         if video_output:
@@ -211,5 +245,93 @@ def main(input_path, output, source_lang, target_lang, bilingual, whisper_provid
             pass
 
 
+def run_init_wizard(config_path: str):
+    """Run the setup wizard and save config."""
+    import yaml
+    from src.wizard import run_setup_wizard
+
+    cfg = run_setup_wizard()
+
+    # Convert 'llm' to 'translation' for backward compatibility
+    if 'llm' in cfg:
+        cfg['translation'] = cfg.pop('llm')
+
+    # Save config
+    output_path = Path(config_path)
+    with open(output_path, 'w') as f:
+        yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True)
+
+
+@cli.command()
+@click.option('--config', '-c', type=click.Path(), default='config.yaml', help='Config file path')
+def init(config):
+    """Run the setup wizard to configure SubGen."""
+    console.print("\n[bold]Starting SubGen Setup Wizard...[/bold]\n")
+    run_init_wizard(config)
+
+
+@cli.group()
+def auth():
+    """Manage authentication for OAuth providers."""
+    pass
+
+
+@auth.command('login')
+@click.argument('provider', type=click.Choice(['copilot']))
+def auth_login(provider):
+    """Login to an OAuth provider.
+
+    \b
+    Supported providers:
+        copilot    GitHub Copilot (uses your GitHub subscription)
+    """
+    if provider == 'copilot':
+        from src.auth.copilot import copilot_login, CopilotAuthError
+
+        console.print("\n[bold]GitHub Copilot Login[/bold]\n")
+
+        try:
+            def on_waiting():
+                pass  # Silent waiting
+
+            copilot_login(on_waiting=on_waiting)
+            console.print("\n[green]✅ Successfully logged in to GitHub Copilot![/green]")
+            console.print("You can now use: --llm-provider copilot\n")
+
+        except CopilotAuthError as e:
+            console.print(f"\n[red]Login failed: {e}[/red]")
+            raise SystemExit(1)
+
+
+@auth.command('logout')
+@click.argument('provider', type=click.Choice(['copilot']))
+def auth_logout(provider):
+    """Logout from an OAuth provider."""
+    from src.auth.store import delete_credential
+
+    if delete_credential(provider):
+        console.print(f"[green]✅ Logged out from {provider}[/green]")
+    else:
+        console.print(f"[yellow]Not logged in to {provider}[/yellow]")
+
+
+@auth.command('status')
+def auth_status():
+    """Show authentication status for all providers."""
+    from src.auth.store import get_credentials_path
+    from src.auth.copilot import is_copilot_logged_in
+
+    console.print("\n[bold]Authentication Status[/bold]\n")
+    console.print(f"Credentials file: [dim]{get_credentials_path()}[/dim]\n")
+
+    # Copilot
+    if is_copilot_logged_in():
+        console.print("  [green]●[/green] GitHub Copilot: [green]logged in[/green]")
+    else:
+        console.print("  [dim]○[/dim] GitHub Copilot: [dim]not logged in[/dim]")
+
+    console.print()
+
+
 if __name__ == '__main__':
-    main()
+    cli()
