@@ -96,7 +96,7 @@ def main(input_path, output, target_lang, bilingual, whisper_provider, llm_provi
     if bilingual:
         cfg['output']['bilingual'] = True
     if embed:
-        cfg['output'].get('embed_in_video', False) = True
+        cfg['output']['embed_in_video'] = True
     
     # 确定输出路径
     if output:
