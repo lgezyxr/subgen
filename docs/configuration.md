@@ -1,162 +1,133 @@
 # ⚙️ 配置说明
 
-SubGen 使用 YAML 配置文件。首次使用请复制 `config.example.yaml` 为 `config.yaml`。
+SubGen 使用 YAML 配置文件管理所有设置。
 
----
+## 配置文件位置
 
-## 配置文件结构
+默认读取当前目录的 `config.yaml`，也可以用 `--config` 参数指定：
 
-```yaml
-# config.yaml
-
-whisper:        # 语音识别配置
-translation:    # 翻译配置
-output:         # 输出配置
-advanced:       # 高级配置
+```bash
+python subgen.py video.mp4 --config /path/to/my-config.yaml
 ```
 
 ---
 
-## 语音识别配置 (whisper)
+## 完整配置项
+
+### Whisper 语音识别
 
 ```yaml
 whisper:
   # 提供商选择
-  provider: "openai"  # local | openai | groq
+  # - local: 本地运行 (需要 GPU)
+  # - openai: OpenAI Whisper API ($0.006/分钟)
+  # - groq: Groq API (有免费额度，超快)
+  provider: "openai"
   
-  # 本地模式配置
-  local_model: "large-v3"  # tiny | base | small | medium | large-v3
-  device: "cuda"           # cuda | cpu
+  # 本地模型选择 (仅 provider: local 时有效)
+  # tiny (39M) → base (74M) → small (244M) → medium (769M) → large-v3 (1.5B)
+  # 模型越大越准，但需要更多显存
+  local_model: "large-v3"
+  
+  # 设备选择 (仅 provider: local 时有效)
+  # cuda: NVIDIA GPU (推荐)
+  # cpu: CPU (很慢，不推荐)
+  device: "cuda"
   
   # API Keys
-  openai_key: "sk-..."     # OpenAI API Key
-  groq_key: "gsk_..."      # Groq API Key
+  openai_key: "sk-..."      # OpenAI API Key
+  groq_key: "gsk_..."       # Groq API Key
 ```
 
-### 提供商对比
-
-| 提供商 | 价格 | 速度 | 质量 | 备注 |
-|--------|------|------|------|------|
-| `local` | 免费 | 依赖 GPU | 最好 | 需要显卡 |
-| `openai` | $0.006/分钟 | 快 | 很好 | 最稳定 |
-| `groq` | 有免费额度 | **极快** | 很好 | 推荐尝试 |
-
-### 本地模型选择
-
-| 模型 | 显存需求 | 质量 | 速度 |
-|------|----------|------|------|
-| `tiny` | ~1GB | ⭐ | 最快 |
-| `base` | ~1GB | ⭐⭐ | 很快 |
-| `small` | ~2GB | ⭐⭐⭐ | 快 |
-| `medium` | ~5GB | ⭐⭐⭐⭐ | 中等 |
-| `large-v3` | ~10GB | ⭐⭐⭐⭐⭐ | 较慢 |
-
----
-
-## 翻译配置 (translation)
+### LLM 翻译
 
 ```yaml
 translation:
   # 提供商选择
-  provider: "openai"  # openai | claude | deepseek | ollama
+  # - openai: OpenAI GPT 系列
+  # - claude: Anthropic Claude
+  # - deepseek: DeepSeek (中文优化，便宜)
+  # - ollama: 本地 LLM (完全免费)
+  provider: "openai"
   
   # 模型选择
+  # OpenAI: gpt-4o-mini (便宜) | gpt-4o (最好)
+  # Claude: claude-3-haiku (快) | claude-3-sonnet (平衡)
+  # DeepSeek: deepseek-chat
+  # Ollama: qwen2.5:14b | llama3:8b
   model: "gpt-4o-mini"
   
-  # API 配置
+  # API Key (openai/claude/deepseek)
   api_key: "sk-..."
-  base_url: ""  # 自定义 API 地址（可选）
   
-  # Ollama 配置（本地 LLM）
+  # 自定义 API 地址 (可选，用于代理或兼容接口)
+  base_url: ""
+  
+  # Ollama 配置
   ollama_host: "http://localhost:11434"
   ollama_model: "qwen2.5:14b"
 ```
 
-### 提供商对比
-
-| 提供商 | 推荐模型 | 价格 | 质量 | 备注 |
-|--------|----------|------|------|------|
-| `openai` | gpt-4o-mini | $0.15/1M | ⭐⭐⭐⭐ | 性价比高 |
-| `openai` | gpt-4o | $2.5/1M | ⭐⭐⭐⭐⭐ | 质量最好 |
-| `claude` | claude-3-haiku | $0.25/1M | ⭐⭐⭐⭐ | 快速 |
-| `deepseek` | deepseek-chat | ¥1/1M | ⭐⭐⭐⭐ | 中文优化 |
-| `ollama` | qwen2.5:14b | 免费 | ⭐⭐⭐ | 本地运行 |
-
----
-
-## 输出配置 (output)
+### 输出设置
 
 ```yaml
 output:
   # 字幕格式
-  format: "srt"  # srt | ass | vtt
+  # - srt: 最通用，所有播放器支持
+  # - ass: 支持样式，字幕组常用
+  # - vtt: Web 视频标准
+  format: "srt"
   
-  # 目标语言
-  target_language: "zh"  # zh | en | ja | ko | ...
+  # 目标翻译语言
+  # zh: 中文 | en: English | ja: 日本語 | ko: 한국어
+  # fr: Français | de: Deutsch | es: Español
+  target_language: "zh"
   
   # 双语字幕
+  # true: 显示原文 + 译文
+  # false: 只显示译文
   bilingual: false
   
   # 每行最大字符数
+  # 控制字幕换行，避免一行太长
   max_chars_per_line: 42
   
-  # 是否烧录进视频
+  # 烧录字幕到视频
+  # true: 输出带字幕的新视频 (硬字幕)
+  # false: 只输出字幕文件
   embed_in_video: false
 ```
 
-### 字幕格式说明
-
-| 格式 | 特点 | 适用场景 |
-|------|------|----------|
-| `srt` | 最通用，纯文本 | 大多数播放器 |
-| `ass` | 支持样式、特效 | 高级排版需求 |
-| `vtt` | Web 标准 | 网页视频 |
-
-### 语言代码
-
-| 代码 | 语言 |
-|------|------|
-| `zh` | 中文 |
-| `en` | English |
-| `ja` | 日本語 |
-| `ko` | 한국어 |
-| `fr` | Français |
-| `de` | Deutsch |
-| `es` | Español |
-
----
-
-## 高级配置 (advanced)
+### 高级设置
 
 ```yaml
 advanced:
-  # 翻译批次大小（一次翻译多少条）
+  # 翻译批次大小
+  # 每次 API 调用翻译多少条字幕
+  # 太大可能超出 token 限制，太小效率低
   translation_batch_size: 20
   
-  # 翻译上下文（提供多少条前文）
+  # 翻译上下文大小
+  # 翻译时提供前后多少条字幕作为上下文
+  # 帮助保持翻译连贯性
   translation_context_size: 5
   
   # 临时文件目录
   temp_dir: "./temp"
   
-  # 保留临时文件（调试用）
+  # 保留临时文件 (调试用)
   keep_temp_files: false
   
   # 日志级别
-  log_level: "INFO"  # DEBUG | INFO | WARNING | ERROR
+  # DEBUG | INFO | WARNING | ERROR
+  log_level: "INFO"
 ```
-
-### 翻译批次说明
-
-- **batch_size 大**：API 调用少，但单次请求大
-- **batch_size 小**：API 调用多，但更实时
-- **推荐值**：15-25
 
 ---
 
 ## 环境变量
 
-API Keys 也可以通过环境变量设置（优先级高于配置文件）：
+API Keys 也可以通过环境变量设置（优先级低于配置文件）：
 
 ```bash
 export OPENAI_API_KEY="sk-..."
@@ -167,37 +138,36 @@ export DEEPSEEK_API_KEY="sk-..."
 
 ---
 
-## 配置优先级
-
-1. **命令行参数** (最高)
-2. **环境变量**
-3. **config.yaml**
-4. **默认值** (最低)
-
-示例：
-```bash
-# 命令行参数会覆盖配置文件
-python subgen.py video.mp4 --whisper-provider local --target-lang ja
-```
-
----
-
 ## 配置示例
 
-### 最简配置（云端）
+### 最便宜方案 (本地 Whisper + GPT-4o-mini)
 
 ```yaml
 whisper:
-  provider: "openai"
-  openai_key: "sk-your-key"
+  provider: "local"
+  local_model: "large-v3"
+  device: "cuda"
 
 translation:
   provider: "openai"
   model: "gpt-4o-mini"
-  api_key: "sk-your-key"
+  api_key: "sk-..."
 ```
 
-### 完全本地（免费）
+### 最快方案 (Groq + GPT-4o)
+
+```yaml
+whisper:
+  provider: "groq"
+  groq_key: "gsk_..."
+
+translation:
+  provider: "openai"
+  model: "gpt-4o"
+  api_key: "sk-..."
+```
+
+### 完全离线方案 (本地 Whisper + Ollama)
 
 ```yaml
 whisper:
@@ -207,22 +177,19 @@ whisper:
 
 translation:
   provider: "ollama"
+  ollama_host: "http://localhost:11434"
   ollama_model: "qwen2.5:14b"
 ```
 
-### 高质量配置
+### 中文优化方案 (DeepSeek)
 
 ```yaml
 whisper:
-  provider: "local"
-  local_model: "large-v3"
+  provider: "openai"
+  openai_key: "sk-..."
 
 translation:
-  provider: "openai"
-  model: "gpt-4o"
-  api_key: "sk-your-key"
-
-output:
-  bilingual: true
-  format: "ass"
+  provider: "deepseek"
+  model: "deepseek-chat"
+  api_key: "sk-..."
 ```

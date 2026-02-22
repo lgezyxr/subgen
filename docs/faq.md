@@ -1,211 +1,185 @@
-# ❓ 常见问题 (FAQ)
+# ❓ 常见问题
 
 ## 安装问题
 
-### Q: 提示找不到 FFmpeg
+### Q: FFmpeg 找不到怎么办？
 
-**A**: FFmpeg 是必需的系统依赖。
+**A**: 确保 FFmpeg 已安装并在 PATH 中：
 
 ```bash
-# macOS
+# 检查是否安装
+ffmpeg -version
+
+# macOS 安装
 brew install ffmpeg
 
-# Ubuntu/Debian
+# Ubuntu 安装
 sudo apt install ffmpeg
 
-# Windows
-# 下载 https://ffmpeg.org/download.html 并添加到 PATH
+# Windows: 下载后添加到 PATH
 ```
 
-### Q: pip install 报错
+---
 
-**A**: 确保 Python 版本 >= 3.10
+### Q: 安装 faster-whisper 报错？
+
+**A**: 需要先安装 PyTorch：
 
 ```bash
-python --version  # 检查版本
+# 有 NVIDIA GPU
+pip install torch --index-url https://download.pytorch.org/whl/cu118
 
-# 如果版本过低，使用 pyenv 管理多版本
-pyenv install 3.11
-pyenv local 3.11
+# 没有 GPU (CPU 模式，很慢)
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+# 然后安装 faster-whisper
+pip install faster-whisper
 ```
 
-### Q: CUDA 相关错误
+---
 
-**A**: 本地 Whisper 需要 NVIDIA GPU 和正确的 CUDA 配置。
+### Q: CUDA out of memory 怎么办？
 
-```bash
-# 检查 GPU
-nvidia-smi
+**A**: 显存不够，有几个解决方案：
 
-# 如果没有 GPU 或不想配置，使用云端 API
-whisper:
-  provider: "openai"  # 或 "groq"
-```
+1. **用更小的模型**:
+   ```yaml
+   whisper:
+     local_model: "medium"  # 或 "small"
+   ```
+
+2. **关闭其他占用 GPU 的程序**
+
+3. **使用云端 API 代替本地**:
+   ```yaml
+   whisper:
+     provider: "openai"  # 或 "groq"
+   ```
 
 ---
 
 ## 使用问题
 
-### Q: 处理速度很慢
+### Q: 识别结果不准怎么办？
 
-**A**: 几个优化方向：
+**A**: 几个改进方法：
 
-1. **使用 Groq API**（极快）
-   ```yaml
-   whisper:
-     provider: "groq"
-   ```
+1. **使用更大的模型** (如 large-v3)
+2. **检查音频质量** (背景噪音大会影响识别)
+3. **尝试不同的提供商** (OpenAI 和 Groq 结果可能不同)
 
-2. **使用更小的本地模型**
-   ```yaml
-   whisper:
-     local_model: "medium"  # 而不是 large-v3
-   ```
+---
 
-3. **使用更快的翻译模型**
+### Q: 翻译质量不好怎么办？
+
+**A**:
+
+1. **使用更好的模型**:
    ```yaml
    translation:
-     model: "gpt-4o-mini"  # 而不是 gpt-4o
+     model: "gpt-4o"  # 最好的质量
    ```
 
-### Q: 字幕时间不准确
+2. **调整批次大小** (给 LLM 更多上下文):
+   ```yaml
+   advanced:
+     translation_batch_size: 30
+     translation_context_size: 10
+   ```
 
-**A**: 这是 Whisper 的已知问题，特别是：
-- 说话速度快
-- 有背景音乐
-- 多人同时说话
+3. **使用 DeepSeek 做中文翻译** (中文优化)
 
-**改善方法**：
-1. 使用 `large-v3` 模型
-2. 等待 v0.2.0 的时间轴优化功能
+---
 
-### Q: 翻译质量不好
+### Q: 字幕时间不准怎么办？
 
-**A**: 
-1. 使用更强的模型（如 `gpt-4o`）
-2. 等待 v0.3.0 的上下文翻译功能
-3. 手动编辑结果
+**A**: 这是已知问题，计划在 v0.2.0 优化。临时解决方案：
 
-### Q: 支持什么视频格式？
+1. 使用专业字幕编辑软件 (如 Aegisub) 微调
+2. 尝试本地 Whisper (时间戳通常更准)
 
-**A**: 任何 FFmpeg 支持的格式：
-- MP4, MKV, AVI, MOV, WMV
-- WebM, FLV, M4V
-- 等等
+---
 
-### Q: 支持什么语言？
+### Q: 如何处理多人对话？
 
-**A**: 
-- **语音识别**：Whisper 支持 99+ 种语言
-- **翻译**：取决于 LLM，主流语言都支持
+**A**: 说话人分离功能计划在 v0.5.0 实现。目前：
+
+1. 字幕不会区分说话人
+2. 可以手动编辑添加角色标签
 
 ---
 
 ## API 问题
 
-### Q: API 请求失败 (401)
+### Q: API 请求失败 (401 Unauthorized)？
 
-**A**: API Key 问题。
+**A**: API Key 问题：
 
-1. 检查 Key 是否正确复制（无多余空格）
-2. 检查 Key 是否过期
+1. 检查 Key 是否正确复制（没有多余空格）
+2. 检查 Key 是否有效（登录控制台确认）
 3. 检查账户是否有余额
 
-### Q: API 请求超时
+---
 
-**A**: 
-1. 检查网络连接
-2. 如果在中国大陆，可能需要代理
-3. 尝试使用 DeepSeek（国内服务）
+### Q: API 请求超时？
 
-### Q: 提示配额不足
+**A**:
 
-**A**: 
-1. 充值账户
-2. 切换到更便宜的模型
-3. 使用本地模型
+1. **检查网络连接**
+2. **使用代理** (如果在国内访问 OpenAI):
+   ```yaml
+   translation:
+     base_url: "https://your-proxy.com/v1"
+   ```
+3. **换一个提供商试试**
 
 ---
 
-## 输出问题
+### Q: 如何估算 API 费用？
 
-### Q: 字幕乱码
+**A**: 大致估算：
 
-**A**: 编码问题。确保：
-1. 使用 UTF-8 编码打开字幕文件
-2. 播放器支持 UTF-8
+- **2小时电影**:
+  - Whisper API: 120 分钟 × $0.006 = $0.72
+  - GPT-4o-mini 翻译: ~$0.05
+  - **总计: ~$0.77 (约 ¥5.5)**
 
-### Q: 字幕不显示
-
-**A**: 
-1. 检查字幕文件是否生成
-2. 确保播放器加载了字幕
-3. 尝试不同的字幕格式（SRT 最通用）
-
-### Q: 双语字幕重叠
-
-**A**: 使用 ASS 格式，它支持更好的位置控制：
-```yaml
-output:
-  format: "ass"
-  bilingual: true
-```
-
----
-
-## 性能问题
-
-### Q: 内存不足
-
-**A**: 
-1. 使用更小的模型
-2. 关闭其他程序
-3. 使用云端 API 代替本地
-
-### Q: GPU 内存不足
-
-**A**: 
-1. 使用更小的模型：
-   ```yaml
-   whisper:
-     local_model: "small"  # 只需 2GB
-   ```
-2. 使用 CPU 模式（慢但稳定）：
-   ```yaml
-   whisper:
-     device: "cpu"
-   ```
-
-### Q: 处理大文件卡死
-
-**A**: 当前版本对大文件支持有限。
-- 暂时手动分割视频
-- 等待 v0.4.0 的分段处理功能
+- **使用 Groq + 本地翻译**: 接近免费
 
 ---
 
 ## 其他问题
 
+### Q: 支持什么视频格式？
+
+**A**: 支持所有 FFmpeg 能处理的格式：
+- MP4, MKV, AVI, MOV, WMV, FLV
+- 音频: MP3, WAV, AAC, FLAC
+
+---
+
+### Q: 可以只做语音识别不翻译吗？
+
+**A**: 暂时不支持，计划在后续版本添加 `--no-translate` 选项。
+
+临时方案：把目标语言设为源语言：
+```bash
+python subgen.py video.mp4 --target-lang en  # 英文视频
+```
+
+---
+
 ### Q: 如何贡献代码？
 
 **A**: 欢迎！请查看 [CONTRIBUTING.md](../CONTRIBUTING.md)
 
-### Q: 如何报告 Bug？
-
-**A**: 在 GitHub Issues 中提交，请包含：
-1. 操作系统和 Python 版本
-2. 完整的错误信息
-3. 复现步骤
-4. 配置文件（隐藏 API Key）
-
-### Q: 有商业授权吗？
-
-**A**: MIT 协议，可自由商用。
+1. Fork 项目
+2. 创建 feature 分支
+3. 提交 Pull Request
 
 ---
 
 ## 还有问题？
 
-- 📖 查看 [完整文档](./README.md)
-- 💬 在 GitHub Issues 提问
-- 🤝 加入社区讨论
+- 提交 [GitHub Issue](https://github.com/YOUR_USERNAME/subgen/issues)
+- 搜索已有 Issue 看看有没有类似问题
