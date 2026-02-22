@@ -1,9 +1,14 @@
 """音频提取模块"""
 
 import subprocess
-import tempfile
+import shutil
 from pathlib import Path
 from typing import Dict, Any
+
+
+def check_ffmpeg() -> bool:
+    """检查 FFmpeg 是否可用"""
+    return shutil.which('ffmpeg') is not None
 
 
 def extract_audio(video_path: Path, config: Dict[str, Any]) -> Path:
@@ -17,6 +22,18 @@ def extract_audio(video_path: Path, config: Dict[str, Any]) -> Path:
     Returns:
         提取的音频文件路径 (WAV 格式)
     """
+    if not check_ffmpeg():
+        raise RuntimeError(
+            "FFmpeg 未安装或不在 PATH 中。\n"
+            "请安装 FFmpeg:\n"
+            "  macOS: brew install ffmpeg\n"
+            "  Ubuntu: sudo apt install ffmpeg\n"
+            "  Windows: https://ffmpeg.org/download.html"
+        )
+    
+    if not video_path.exists():
+        raise FileNotFoundError(f"视频文件不存在: {video_path}")
+    
     temp_dir = Path(config['advanced']['temp_dir'])
     temp_dir.mkdir(parents=True, exist_ok=True)
     
@@ -35,6 +52,7 @@ def extract_audio(video_path: Path, config: Dict[str, Any]) -> Path:
         '-ar', '16000',
         '-ac', '1',
         '-y',  # 覆盖已存在的文件
+        '-loglevel', 'error',  # 只显示错误
         str(audio_path)
     ]
     
@@ -47,11 +65,17 @@ def extract_audio(video_path: Path, config: Dict[str, Any]) -> Path:
     if result.returncode != 0:
         raise RuntimeError(f"FFmpeg 音频提取失败: {result.stderr}")
     
+    if not audio_path.exists():
+        raise RuntimeError("音频提取失败：输出文件未生成")
+    
     return audio_path
 
 
 def get_audio_duration(audio_path: Path) -> float:
     """获取音频时长（秒）"""
+    if not audio_path.exists():
+        raise FileNotFoundError(f"音频文件不存在: {audio_path}")
+    
     cmd = [
         'ffprobe',
         '-v', 'error',
@@ -65,4 +89,22 @@ def get_audio_duration(audio_path: Path) -> float:
     if result.returncode != 0:
         raise RuntimeError(f"无法获取音频时长: {result.stderr}")
     
-    return float(result.stdout.strip())
+    duration_str = result.stdout.strip()
+    if not duration_str:
+        raise RuntimeError("无法解析音频时长")
+    
+    return float(duration_str)
+
+
+def cleanup_temp_files(config: Dict[str, Any]) -> None:
+    """清理临时文件"""
+    if config['advanced'].get('keep_temp_files', False):
+        return
+    
+    temp_dir = Path(config['advanced']['temp_dir'])
+    if temp_dir.exists():
+        for f in temp_dir.glob('*_audio.wav'):
+            try:
+                f.unlink()
+            except OSError:
+                pass

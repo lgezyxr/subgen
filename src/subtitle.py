@@ -1,6 +1,7 @@
 """字幕生成模块"""
 
 import subprocess
+import re
 from pathlib import Path
 from typing import Dict, Any, List
 from .transcribe import Segment
@@ -19,6 +20,9 @@ def generate_subtitle(
         output_path: 输出文件路径
         config: 配置字典
     """
+    if not segments:
+        raise ValueError("没有字幕内容可生成")
+    
     format_type = config['output']['format']
     bilingual = config['output']['bilingual']
     
@@ -34,6 +38,8 @@ def generate_subtitle(
 
 def _format_time_srt(seconds: float) -> str:
     """格式化时间为 SRT 格式 (HH:MM:SS,mmm)"""
+    if seconds < 0:
+        seconds = 0
     hours = int(seconds // 3600)
     minutes = int((seconds % 3600) // 60)
     secs = int(seconds % 60)
@@ -43,6 +49,8 @@ def _format_time_srt(seconds: float) -> str:
 
 def _format_time_vtt(seconds: float) -> str:
     """格式化时间为 VTT 格式 (HH:MM:SS.mmm)"""
+    if seconds < 0:
+        seconds = 0
     hours = int(seconds // 3600)
     minutes = int((seconds % 3600) // 60)
     secs = int(seconds % 60)
@@ -50,24 +58,50 @@ def _format_time_vtt(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:02d}.{millis:03d}"
 
 
+def _format_time_ass(seconds: float) -> str:
+    """格式化时间为 ASS 格式 (H:MM:SS.cc)"""
+    if seconds < 0:
+        seconds = 0
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    centis = int((seconds - int(seconds)) * 100)
+    return f"{hours}:{minutes:02d}:{secs:02d}.{centis:02d}"
+
+
+def _escape_ass_text(text: str) -> str:
+    """转义 ASS 格式中的特殊字符"""
+    # ASS 使用 \n 表示换行，需要转义反斜杠
+    text = text.replace('\\', '\\\\')
+    # 花括号用于样式标签，需要转义
+    text = text.replace('{', '\\{')
+    text = text.replace('}', '\\}')
+    return text
+
+
 def _generate_srt(segments: List[Segment], output_path: Path, bilingual: bool) -> None:
     """生成 SRT 格式字幕"""
     lines = []
     
     for i, seg in enumerate(segments, 1):
+        # 跳过空字幕
+        content = seg.translated or seg.text
+        if not content.strip():
+            continue
+        
         lines.append(str(i))
         lines.append(f"{_format_time_srt(seg.start)} --> {_format_time_srt(seg.end)}")
         
-        if bilingual and seg.text:
+        if bilingual and seg.text and seg.translated:
             # 双语: 译文在上，原文在下
             lines.append(seg.translated)
             lines.append(seg.text)
         else:
-            # 单语: 只显示译文
-            lines.append(seg.translated or seg.text)
+            lines.append(content)
         
         lines.append("")  # 空行分隔
     
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(lines), encoding='utf-8')
 
 
@@ -75,17 +109,22 @@ def _generate_vtt(segments: List[Segment], output_path: Path, bilingual: bool) -
     """生成 WebVTT 格式字幕"""
     lines = ["WEBVTT", ""]
     
-    for i, seg in enumerate(segments, 1):
+    for seg in segments:
+        content = seg.translated or seg.text
+        if not content.strip():
+            continue
+        
         lines.append(f"{_format_time_vtt(seg.start)} --> {_format_time_vtt(seg.end)}")
         
-        if bilingual and seg.text:
+        if bilingual and seg.text and seg.translated:
             lines.append(seg.translated)
             lines.append(seg.text)
         else:
-            lines.append(seg.translated or seg.text)
+            lines.append(content)
         
         lines.append("")
     
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(lines), encoding='utf-8')
 
 
@@ -116,26 +155,25 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     lines = [header]
     
     for seg in segments:
+        content = seg.translated or seg.text
+        if not content.strip():
+            continue
+        
         start = _format_time_ass(seg.start)
         end = _format_time_ass(seg.end)
         
-        if bilingual and seg.text:
+        if bilingual and seg.text and seg.translated:
             # 双语: 两行
-            lines.append(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{seg.translated}")
-            lines.append(f"Dialogue: 0,{start},{end},Secondary,,0,0,0,,{seg.text}")
+            trans_escaped = _escape_ass_text(seg.translated)
+            orig_escaped = _escape_ass_text(seg.text)
+            lines.append(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{trans_escaped}")
+            lines.append(f"Dialogue: 0,{start},{end},Secondary,,0,0,0,,{orig_escaped}")
         else:
-            lines.append(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{seg.translated or seg.text}")
+            escaped = _escape_ass_text(content)
+            lines.append(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{escaped}")
     
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(lines), encoding='utf-8')
-
-
-def _format_time_ass(seconds: float) -> str:
-    """格式化时间为 ASS 格式 (H:MM:SS.cc)"""
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = int(seconds % 60)
-    centis = int((seconds - int(seconds)) * 100)
-    return f"{hours}:{minutes:02d}:{secs:02d}.{centis:02d}"
 
 
 def embed_subtitle(
@@ -145,7 +183,7 @@ def embed_subtitle(
     config: Dict[str, Any]
 ) -> None:
     """
-    将字幕烧录进视频
+    将字幕烧录进视频（硬字幕）
     
     Args:
         video_path: 原视频路径
@@ -153,13 +191,19 @@ def embed_subtitle(
         output_path: 输出视频路径
         config: 配置字典
     """
-    # 使用 FFmpeg 烧录字幕
+    # FFmpeg subtitles filter 需要转义特殊字符
+    # 冒号、反斜杠、单引号需要转义
+    subtitle_path_str = str(subtitle_path.absolute())
+    # 转义 Windows 路径中的冒号和反斜杠
+    subtitle_path_escaped = subtitle_path_str.replace('\\', '/').replace(':', '\\:')
+    
     cmd = [
         'ffmpeg',
         '-i', str(video_path),
-        '-vf', f"subtitles={subtitle_path}",
-        '-c:a', 'copy',  # 音频直接复制
+        '-vf', f"subtitles='{subtitle_path_escaped}'",
+        '-c:a', 'copy',
         '-y',
+        '-loglevel', 'error',
         str(output_path)
     ]
     
@@ -182,16 +226,17 @@ def add_subtitle_track(
         video_path: 原视频路径
         subtitle_path: 字幕文件路径
         output_path: 输出视频路径
-        language: 字幕语言代码
+        language: 字幕语言代码 (ISO 639-2)
     """
     cmd = [
         'ffmpeg',
         '-i', str(video_path),
         '-i', str(subtitle_path),
         '-c', 'copy',
-        '-c:s', 'mov_text',  # 字幕编码
+        '-c:s', 'mov_text',
         '-metadata:s:s:0', f'language={language}',
         '-y',
+        '-loglevel', 'error',
         str(output_path)
     ]
     

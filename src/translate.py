@@ -17,9 +17,10 @@ TRANSLATION_SYSTEM_PROMPT = """你是一个专业的字幕翻译员。你的任�
 输出格式：
 - 只输出翻译结果，每行对应一条字幕
 - 不要添加序号或额外说明
+- 输入多少行，输出多少行（严格一一对应）
 """
 
-TRANSLATION_USER_PROMPT = """请翻译以下字幕（每行一条）：
+TRANSLATION_USER_PROMPT = """请翻译以下 {count} 条字幕（每行一条，输出也必须是 {count} 行）：
 
 {subtitles}
 """
@@ -41,6 +42,9 @@ def translate_segments(
     Returns:
         翻译后的字幕片段列表
     """
+    if not segments:
+        return []
+    
     provider = config['translation']['provider']
     target_lang = config['output']['target_language']
     max_chars = config['output']['max_chars_per_line']
@@ -64,17 +68,31 @@ def translate_segments(
         batch = segments[i:i + batch_size]
         batch_texts = [seg.text for seg in batch]
         
+        # 跳过全空的批次
+        if all(not text.strip() for text in batch_texts):
+            for seg in batch:
+                seg.translated = ""
+                translated_segments.append(seg)
+            if progress_callback:
+                progress_callback(len(batch))
+            continue
+        
         # 调用翻译
-        translations = translate_fn(
-            batch_texts,
-            target_lang,
-            max_chars,
-            config
-        )
+        try:
+            translations = translate_fn(
+                batch_texts,
+                target_lang,
+                max_chars,
+                config
+            )
+        except Exception as e:
+            # 翻译失败时，保留原文
+            print(f"翻译批次失败: {e}")
+            translations = batch_texts
         
         # 更新字幕
         for seg, trans in zip(batch, translations):
-            seg.translated = trans
+            seg.translated = trans.strip() if trans else seg.text
             translated_segments.append(seg)
         
         # 更新进度
@@ -82,6 +100,44 @@ def translate_segments(
             progress_callback(len(batch))
     
     return translated_segments
+
+
+def _parse_translations(result_text: str, expected_count: int) -> List[str]:
+    """
+    解析 LLM 返回的翻译结果
+    
+    处理各种边界情况：
+    - 行数不匹配
+    - 空行
+    - 额外的格式
+    """
+    # 按行分割，过滤掉纯空行（保留有内容的行）
+    lines = result_text.strip().split('\n')
+    
+    # 移除可能的序号前缀 (1. 2. 等)
+    translations = []
+    for line in lines:
+        line = line.strip()
+        # 移除常见的序号格式
+        if line and line[0].isdigit():
+            # 检查是否是 "1. xxx" 或 "1) xxx" 格式
+            for sep in ['. ', ') ', ': ', '、']:
+                if sep in line[:5]:
+                    line = line.split(sep, 1)[-1]
+                    break
+        translations.append(line)
+    
+    # 过滤空行但保持位置对应
+    # 如果行数匹配，直接返回
+    if len(translations) == expected_count:
+        return translations
+    
+    # 如果行数少于预期，用空字符串填充
+    while len(translations) < expected_count:
+        translations.append("")
+    
+    # 如果行数多于预期，截断
+    return translations[:expected_count]
 
 
 def _translate_openai(
@@ -109,6 +165,7 @@ def _translate_openai(
     )
     
     user_prompt = TRANSLATION_USER_PROMPT.format(
+        count=len(texts),
         subtitles="\n".join(texts)
     )
     
@@ -118,18 +175,11 @@ def _translate_openai(
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ],
-        temperature=0.3,  # 低温度，更稳定的翻译
+        temperature=0.3,
     )
     
-    # 解析结果
     result_text = response.choices[0].message.content.strip()
-    translations = result_text.split('\n')
-    
-    # 确保数量匹配
-    while len(translations) < len(texts):
-        translations.append("")
-    
-    return translations[:len(texts)]
+    return _parse_translations(result_text, len(texts))
 
 
 def _translate_claude(
@@ -156,6 +206,7 @@ def _translate_claude(
     )
     
     user_prompt = TRANSLATION_USER_PROMPT.format(
+        count=len(texts),
         subtitles="\n".join(texts)
     )
     
@@ -169,12 +220,7 @@ def _translate_claude(
     )
     
     result_text = response.content[0].text.strip()
-    translations = result_text.split('\n')
-    
-    while len(translations) < len(texts):
-        translations.append("")
-    
-    return translations[:len(texts)]
+    return _parse_translations(result_text, len(texts))
 
 
 def _translate_deepseek(
@@ -204,6 +250,7 @@ def _translate_deepseek(
     )
     
     user_prompt = TRANSLATION_USER_PROMPT.format(
+        count=len(texts),
         subtitles="\n".join(texts)
     )
     
@@ -217,12 +264,7 @@ def _translate_deepseek(
     )
     
     result_text = response.choices[0].message.content.strip()
-    translations = result_text.split('\n')
-    
-    while len(translations) < len(texts):
-        translations.append("")
-    
-    return translations[:len(texts)]
+    return _parse_translations(result_text, len(texts))
 
 
 def _translate_ollama(
@@ -243,37 +285,40 @@ def _translate_ollama(
     )
     
     user_prompt = TRANSLATION_USER_PROMPT.format(
+        count=len(texts),
         subtitles="\n".join(texts)
     )
     
-    response = httpx.post(
-        f"{host}/api/chat",
-        json={
-            "model": model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            "stream": False,
-        },
-        timeout=120.0
-    )
-    response.raise_for_status()
+    try:
+        response = httpx.post(
+            f"{host}/api/chat",
+            json={
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                "stream": False,
+            },
+            timeout=120.0
+        )
+        response.raise_for_status()
+    except httpx.ConnectError:
+        raise ConnectionError(
+            f"无法连接到 Ollama ({host})。请确保 Ollama 正在运行:\n"
+            "ollama serve"
+        )
     
     result = response.json()
     result_text = result['message']['content'].strip()
-    translations = result_text.split('\n')
-    
-    while len(translations) < len(texts):
-        translations.append("")
-    
-    return translations[:len(texts)]
+    return _parse_translations(result_text, len(texts))
 
 
 def _get_lang_name(lang_code: str) -> str:
     """语言代码转语言名称"""
     lang_map = {
         'zh': '中文',
+        'zh-TW': '繁體中文',
         'en': 'English',
         'ja': '日本語',
         'ko': '한국어',
@@ -283,5 +328,7 @@ def _get_lang_name(lang_code: str) -> str:
         'pt': 'Português',
         'ru': 'Русский',
         'ar': 'العربية',
+        'th': 'ภาษาไทย',
+        'vi': 'Tiếng Việt',
     }
     return lang_map.get(lang_code, lang_code)
