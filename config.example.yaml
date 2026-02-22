@@ -1,78 +1,85 @@
-# SubGen 配置文件
-# 复制为 config.yaml 并填入你的 API Keys
+# SubGen Configuration File
+# Copy to config.yaml and fill in your API Keys
 
 # ============================================
-# 语音识别配置 (Whisper)
+# Speech Recognition (Whisper)
 # ============================================
 whisper:
-  # 提供商选择: local | openai | groq
-  provider: "openai"
-  
-  # 模型选择 (本地模式)
-  # tiny | base | small | medium | large-v3
+  # Provider: local | mlx | openai | groq
+  # - local: faster-whisper, needs NVIDIA GPU
+  # - mlx: Apple Silicon optimized (M1/M2/M3 Mac)
+  # - groq: Free tier, very fast
+  # - openai: $0.006/min
+  provider: "groq"
+
+  # Model (for local/mlx): tiny | base | small | medium | large-v3
   local_model: "large-v3"
-  
-  # 设备 (本地模式): cuda | cpu
+
+  # Device (for local only): cuda | cpu
   device: "cuda"
-  
-  # API Keys (按需填写)
+
+  # API Keys (fill in as needed)
   openai_key: ""      # OpenAI API Key (sk-...)
   groq_key: ""        # Groq API Key (gsk_...)
 
 # ============================================
-# 翻译配置 (LLM)
+# Translation (LLM)
 # ============================================
 translation:
-  # 提供商选择: openai | claude | deepseek | ollama | github-copilot
-  provider: "openai"
-  
-  # 模型选择
-  model: "gpt-4o-mini"  # 性价比推荐
-  # model: "gpt-4o"     # 质量最好
-  # model: "deepseek-chat"  # 中文优化
-  
-  # API 配置
-  api_key: ""         # API Key
-  base_url: ""        # 自定义 API 地址 (可选)
-  
-  # Ollama 配置 (本地 LLM)
+  # Provider: openai | claude | deepseek | ollama | copilot
+  # - copilot: Use GitHub Copilot subscription (OAuth login)
+  # - openai: gpt-4o-mini recommended
+  # - deepseek: Good for Chinese
+  # - ollama: Local LLM
+  provider: "copilot"
+
+  # Model selection
+  model: "gpt-4o-mini"  # Best value
+  # model: "gpt-4o"     # Best quality
+  # model: "deepseek-chat"  # Chinese optimized
+
+  # API configuration
+  api_key: ""         # API Key (not needed for copilot)
+  base_url: ""        # Custom API URL (optional)
+
+  # Ollama configuration (local LLM)
   ollama_host: "http://localhost:11434"
   ollama_model: "qwen2.5:14b"
 
 # ============================================
-# 输出配置
+# Output Settings
 # ============================================
 output:
-  # 字幕格式: srt | ass | vtt
+  # Subtitle format: srt | ass | vtt
   format: "srt"
-  
-  # 目标语言 (翻译目标)
+
+  # Target language for translation
   target_language: "zh"  # zh | ja | ko | en | ...
-  
-  # 双语字幕 (原文 + 译文)
+
+  # Bilingual subtitles (original + translated)
   bilingual: false
-  
-  # 每行最大字符数 (字幕排版)
+
+  # Max characters per line
   max_chars_per_line: 42
-  
-  # 是否烧录进视频
+
+  # Burn subtitles into video
   embed_in_video: false
 
 # ============================================
-# 高级配置
+# Advanced Settings
 # ============================================
 advanced:
-  # 翻译批次大小 (一次翻译多少条字幕)
+  # Translation batch size
   translation_batch_size: 20
-  
-  # 翻译时包含的上下文条数
+
+  # Context lines for translation
   translation_context_size: 5
-  
-  # 临时文件目录
+
+  # Temp directory
   temp_dir: "./temp"
-  
-  # 是否保留中间文件 (调试用)
+
+  # Keep intermediate files (for debugging)
   keep_temp_files: false
-  
-  # 日志级别: DEBUG | INFO | WARNING | ERROR
+
+  # Log level: DEBUG | INFO | WARNING | ERROR
   log_level: "INFO"

@@ -17,6 +17,12 @@ WHISPER_PROVIDERS = {
         "key_url": "https://console.groq.com/keys",
         "recommended": True
     },
+    "mlx": {
+        "name": "MLX (Apple Silicon)",
+        "description": "Free, optimized for M1/M2/M3 Mac",
+        "requires_key": False,
+        "mac_only": True
+    },
     "openai": {
         "name": "OpenAI",
         "description": "$0.006/min, most stable",
@@ -26,7 +32,7 @@ WHISPER_PROVIDERS = {
     },
     "local": {
         "name": "Local (faster-whisper)",
-        "description": "Free, requires GPU with 4GB+ VRAM",
+        "description": "Free, requires NVIDIA GPU with 4GB+ VRAM",
         "requires_key": False
     }
 }

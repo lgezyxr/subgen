@@ -30,6 +30,8 @@ def transcribe_audio(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
 
     if provider == 'local':
         return _transcribe_local(audio_path, config)
+    elif provider == 'mlx':
+        return _transcribe_mlx(audio_path, config)
     elif provider == 'openai':
         return _transcribe_openai(audio_path, config)
     elif provider == 'groq':
@@ -77,6 +79,57 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
             start=seg.start,
             end=seg.end,
             text=seg.text.strip()
+        ))
+
+    return segments
+
+
+def _transcribe_mlx(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
+    """Transcribe using mlx-whisper (Apple Silicon optimized)"""
+    try:
+        import mlx_whisper
+    except ImportError:
+        raise ImportError(
+            "MLX Whisper requires mlx-whisper (Apple Silicon only):\n"
+            "pip install mlx-whisper"
+        )
+
+    # Model mapping to MLX community repos
+    model_map = {
+        "tiny": "mlx-community/whisper-tiny-mlx",
+        "base": "mlx-community/whisper-base-mlx",
+        "small": "mlx-community/whisper-small-mlx",
+        "medium": "mlx-community/whisper-medium-mlx",
+        "large": "mlx-community/whisper-large-v3-mlx",
+        "large-v2": "mlx-community/whisper-large-v2-mlx",
+        "large-v3": "mlx-community/whisper-large-v3-mlx",
+        "large-v3-turbo": "mlx-community/whisper-large-v3-turbo",
+    }
+
+    model_name = config['whisper'].get('local_model', 'large-v3')
+    mlx_model = model_map.get(model_name, model_name)  # Allow direct HF repo path
+
+    source_lang = config['whisper'].get('source_language', None)
+
+    # Build transcribe options
+    transcribe_opts = {
+        "path_or_hf_repo": mlx_model,
+        "word_timestamps": True,
+    }
+
+    # Add language parameter if source language specified
+    if source_lang and source_lang != 'auto':
+        transcribe_opts["language"] = source_lang
+
+    # Transcribe
+    result = mlx_whisper.transcribe(str(audio_path), **transcribe_opts)
+
+    segments = []
+    for seg in result.get("segments", []):
+        segments.append(Segment(
+            start=seg["start"],
+            end=seg["end"],
+            text=seg["text"].strip()
         ))
 
     return segments

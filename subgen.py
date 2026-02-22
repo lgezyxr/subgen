@@ -40,7 +40,7 @@ def cli():
 @click.option('--from', '-f', 'source_lang', default=None, help='Source language (e.g., en, es, ja). Auto-detect if not specified')
 @click.option('--to', '-t', 'target_lang', default=None, help='Target translation language (e.g., zh, ja, ko)')
 @click.option('--bilingual', '-b', is_flag=True, help='Generate bilingual subtitles')
-@click.option('--whisper-provider', type=click.Choice(['local', 'openai', 'groq']), help='Override Whisper provider from config')
+@click.option('--whisper-provider', type=click.Choice(['local', 'mlx', 'openai', 'groq']), help='Override Whisper provider from config')
 @click.option('--llm-provider', type=click.Choice(['openai', 'claude', 'deepseek', 'ollama', 'copilot']), help='Override LLM provider from config')
 @click.option('--embed', is_flag=True, help='Burn subtitles into video')
 @click.option('--config', '-c', type=click.Path(), default='config.yaml', help='Config file path')
