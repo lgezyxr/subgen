@@ -1,29 +1,23 @@
-# Core dependencies
+# 核心依赖
 pyyaml>=6.0
-click>=8.0
 rich>=13.0
-httpx>=0.25.0
 
-# Audio processing
-ffmpeg-python>=0.2.0
+# Whisper - 本地
+faster-whisper>=0.10.0; extra == "local"
 
-# Subtitle handling
-pysubs2>=1.6.0
-
-# OpenAI API
+# Whisper - 云服务
 openai>=1.0.0
-
-# Anthropic Claude API
-anthropic>=0.18.0
-
-# Optional: Local Whisper (uncomment to install)
-# faster-whisper>=1.0.0
-# torch>=2.0.0
-
-# Optional: Groq API
 groq>=0.4.0
 
-# Development
+# LLM - Claude
+anthropic>=0.18.0
+
+# LLM - DeepSeek (用 OpenAI SDK)
+# openai>=1.0.0  # 已包含
+
+# LLM - Ollama
+requests>=2.28.0
+
+# 开发依赖
 pytest>=7.0.0
-black>=23.0.0
 ruff>=0.1.0
