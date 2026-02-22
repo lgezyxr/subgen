@@ -445,8 +445,61 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
                                 result = parts[0]
                 except json.JSONDecodeError:
                     continue
+
+    elif provider == 'claude':
+        import anthropic
+        api_key = config.get('translation', {}).get('api_key')
+        model = config.get('translation', {}).get('model', 'claude-sonnet-4-20250514')
+        
+        client = anthropic.Anthropic(api_key=api_key)
+        message = client.messages.create(
+            model=model,
+            max_tokens=1024,
+            messages=[{'role': 'user', 'content': prompt}]
+        )
+        result = message.content[0].text
+
+    elif provider == 'ollama':
+        import requests
+        model = config.get('translation', {}).get('model', 'qwen2.5:14b')
+        ollama_url = config.get('translation', {}).get('ollama_url', 'http://localhost:11434')
+        
+        response = requests.post(
+            f"{ollama_url}/api/generate",
+            json={
+                'model': model,
+                'prompt': prompt,
+                'stream': False,
+            },
+            timeout=120
+        )
+        response.raise_for_status()
+        result = response.json()['response']
+
+    elif provider == 'copilot':
+        from .auth.copilot import get_copilot_api_token
+        token = get_copilot_api_token()
+        model = config.get('translation', {}).get('model', 'gpt-4o-mini')
+        
+        response = requests.post(
+            'https://api.githubcopilot.com/chat/completions',
+            headers={
+                'Authorization': f'Bearer {token}',
+                'Content-Type': 'application/json',
+                'Editor-Version': 'vscode/1.85.0',
+                'Copilot-Integration-Id': 'vscode-chat',
+            },
+            json={
+                'model': model,
+                'messages': [{'role': 'user', 'content': prompt}],
+            },
+            timeout=60
+        )
+        response.raise_for_status()
+        result = response.json()['choices'][0]['message']['content']
+    
     else:
-        raise ValueError(f"Sentence-aware translation not yet supported for provider: {provider}")
+        raise ValueError(f"Unsupported provider for sentence-aware translation: {provider}")
     
     # Parse result into lines
     lines = [line.strip() for line in result.strip().split('\n') if line.strip()]
