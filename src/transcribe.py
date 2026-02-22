@@ -25,7 +25,8 @@ def transcribe_audio(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
     Returns:
         字幕片段列表
     """
-    provider = config['whisper']['provider']
+    whisper_config = config.get('whisper', {})
+    provider = whisper_config.get('provider', 'local')
     
     if provider == 'local':
         return _transcribe_local(audio_path, config)

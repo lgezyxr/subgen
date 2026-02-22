@@ -94,8 +94,14 @@ def translate_segments(
             print(f"翻译批次失败: {e}")
             translations = batch_texts
         
-        # 更新字幕
-        for seg, trans in zip(batch, translations):
+        # 确保 translations 长度与 batch 相等
+        while len(translations) < len(batch):
+            translations.append("")
+        translations = translations[:len(batch)]
+        
+        # 更新字幕 (使用索引遍历确保不丢失)
+        for idx, seg in enumerate(batch):
+            trans = translations[idx] if idx < len(translations) else ""
             seg.translated = trans.strip() if trans else seg.text
             translated_segments.append(seg)
         
@@ -115,21 +121,21 @@ def _parse_translations(result_text: str, expected_count: int) -> List[str]:
     - 空行
     - 额外的格式
     """
-    # 按行分割，过滤掉纯空行（保留有内容的行）
-    lines = result_text.strip().split('\n')
+    # 按行分割，保留所有行（不要 strip 整体，以免丢失首尾空行）
+    lines = result_text.split('\n')
     
     # 移除可能的序号前缀 (1. 2. 等)
     translations = []
     for line in lines:
-        line = line.strip()
+        line_stripped = line.strip()
         # 移除常见的序号格式
-        if line and line[0].isdigit():
+        if line_stripped and line_stripped[0].isdigit():
             # 检查是否是 "1. xxx" 或 "1) xxx" 格式
             for sep in ['. ', ') ', ': ', '、']:
-                if sep in line[:5]:
-                    line = line.split(sep, 1)[-1]
+                if sep in line_stripped[:5]:
+                    line_stripped = line_stripped.split(sep, 1)[-1]
                     break
-        translations.append(line)
+        translations.append(line_stripped)
     
     # 过滤空行但保持位置对应
     # 如果行数匹配，直接返回

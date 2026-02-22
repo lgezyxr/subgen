@@ -80,6 +80,12 @@ def main(input_path, output, target_lang, bilingual, whisper_provider, llm_provi
         console.print(f"[red]错误: 配置文件加载失败: {e}[/red]")
         raise SystemExit(1)
     
+    # 确保配置结构完整
+    cfg.setdefault('whisper', {})
+    cfg.setdefault('translation', {})
+    cfg.setdefault('output', {})
+    cfg.setdefault('advanced', {})
+    
     # 命令行参数覆盖配置
     if whisper_provider:
         cfg['whisper']['provider'] = whisper_provider
@@ -90,22 +96,22 @@ def main(input_path, output, target_lang, bilingual, whisper_provider, llm_provi
     if bilingual:
         cfg['output']['bilingual'] = True
     if embed:
-        cfg['output']['embed_in_video'] = True
+        cfg['output'].get('embed_in_video', False) = True
     
     # 确定输出路径
     if output:
         output_path = Path(output)
     else:
-        suffix = f".{cfg['output']['format']}"
+        suffix = f".{cfg['output'].get('format', 'srt')}"
         output_path = input_path.with_suffix(suffix)
     
     console.print(f"\n[bold blue]🎬 SubGen - AI 字幕生成工具[/bold blue]\n")
     console.print(f"输入: [cyan]{input_path}[/cyan]")
     console.print(f"输出: [cyan]{output_path}[/cyan]")
-    console.print(f"Whisper: [yellow]{cfg['whisper']['provider']}[/yellow]")
-    console.print(f"翻译: [yellow]{cfg['translation']['provider']}[/yellow] ({cfg['translation'].get('model', 'default')})")
-    console.print(f"目标语言: [yellow]{cfg['output']['target_language']}[/yellow]")
-    console.print(f"双语字幕: [yellow]{'是' if cfg['output']['bilingual'] else '否'}[/yellow]")
+    console.print(f"Whisper: [yellow]{cfg['whisper'].get('provider', 'local')}[/yellow]")
+    console.print(f"翻译: [yellow]{cfg['translation'].get('provider', 'openai')}[/yellow] ({cfg['translation'].get('model', 'default')})")
+    console.print(f"目标语言: [yellow]{cfg['output'].get('target_language', 'zh')}[/yellow]")
+    console.print(f"双语字幕: [yellow]{'是' if cfg['output'].get('bilingual', False) else '否'}[/yellow]")
     console.print()
     
     audio_path = None
@@ -149,7 +155,7 @@ def main(input_path, output, target_lang, bilingual, whisper_provider, llm_provi
             progress.update(task4, completed=True, description="[green]✓ 字幕生成完成")
             
             # Step 5: 嵌入视频 (可选)
-            if cfg['output']['embed_in_video']:
+            if cfg['output'].get('embed_in_video', False):
                 task5 = progress.add_task("[cyan]嵌入字幕到视频...", total=None)
                 video_output = input_path.with_stem(input_path.stem + '_subbed')
                 embed_subtitle(input_path, output_path, video_output, cfg)
