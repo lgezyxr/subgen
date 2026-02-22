@@ -66,7 +66,7 @@ class TestBuildSystemPrompt:
         from src.translate import _build_system_prompt
 
         with patch('src.translate.load_translation_rules', return_value=None):
-            prompt = _build_system_prompt('English', 40, 'en')
+            prompt = _build_system_prompt('English', 'English', 40, 'en')
             assert 'English' in prompt
             assert '40' in prompt
             # 不应该包含规则部分
@@ -78,8 +78,18 @@ class TestBuildSystemPrompt:
 
         mock_rules = "- 使用半角标点\n- 数字用中文"
         with patch('src.translate.load_translation_rules', return_value=mock_rules):
-            prompt = _build_system_prompt('中文', 22, 'zh')
+            prompt = _build_system_prompt('English', '中文', 22, 'zh')
             assert '中文' in prompt
+            assert 'English' in prompt
             assert '22' in prompt
             assert '翻译规则（必须严格遵守）' in prompt
             assert '使用半角标点' in prompt
+
+    def test_prompt_source_target_both_present(self):
+        """测试源语言和目标语言都在提示词中"""
+        from src.translate import _build_system_prompt
+
+        with patch('src.translate.load_translation_rules', return_value=None):
+            prompt = _build_system_prompt('Español', '日本語', 40, 'ja')
+            assert 'Español' in prompt
+            assert '日本語' in prompt

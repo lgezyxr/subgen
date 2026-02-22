@@ -11,6 +11,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         'provider': 'local',
         'local_model': 'large-v3',
         'device': 'cuda',
+        'source_language': 'auto',  # 源语言，auto=自动检测
     },
     'translation': {
         'provider': 'openai',
@@ -18,7 +19,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     'output': {
         'format': 'srt',
-        'target_language': 'zh',
+        'source_language': 'auto',  # 翻译源语言
+        'target_language': 'zh',    # 翻译目标语言
         'bilingual': False,
         'max_chars_per_line': 42,
         'embed_in_video': False,

@@ -22,14 +22,15 @@ console = Console()
 @click.command()
 @click.argument('input_path', type=click.Path(exists=True))
 @click.option('--output', '-o', type=click.Path(), help='输出字幕文件路径')
-@click.option('--target-lang', '-t', default=None, help='目标翻译语言 (默认: zh)')
+@click.option('--from', '-f', 'source_lang', default=None, help='源语言 (如: en, es, ja)，不指定则自动检测')
+@click.option('--to', '-t', 'target_lang', default=None, help='目标翻译语言 (如: zh, ja, ko)')
 @click.option('--bilingual', '-b', is_flag=True, help='生成双语字幕')
 @click.option('--whisper-provider', type=click.Choice(['local', 'openai', 'groq']), help='覆盖配置的 Whisper 提供商')
 @click.option('--llm-provider', type=click.Choice(['openai', 'claude', 'deepseek', 'ollama']), help='覆盖配置的 LLM 提供商')
 @click.option('--embed', is_flag=True, help='将字幕烧录进视频')
 @click.option('--config', '-c', type=click.Path(), default='config.yaml', help='配置文件路径')
 @click.option('--verbose', '-v', is_flag=True, help='显示详细日志')
-def main(input_path, output, target_lang, bilingual, whisper_provider, llm_provider, embed, config, verbose):
+def main(input_path, output, source_lang, target_lang, bilingual, whisper_provider, llm_provider, embed, config, verbose):
     """
     SubGen - AI 字幕生成工具
     
@@ -38,11 +39,20 @@ def main(input_path, output, target_lang, bilingual, whisper_provider, llm_provi
     示例:
     
     \b
+        # 基本用法（自动检测源语言，翻译成中文）
         python subgen.py movie.mp4
         
-        python subgen.py movie.mp4 --target-lang zh --bilingual
+        # 指定源语言和目标语言
+        python subgen.py movie.mp4 --from en --to zh
         
-        python subgen.py movie.mp4 -o output.srt --whisper-provider local
+        # 西班牙语翻译成日语
+        python subgen.py movie.mp4 -f es -t ja
+        
+        # 生成双语字幕
+        python subgen.py movie.mp4 --from en --to zh --bilingual
+        
+        # 使用本地 Whisper
+        python subgen.py movie.mp4 -f en -t zh --whisper-provider local
     """
     
     input_path = Path(input_path)
@@ -91,12 +101,19 @@ def main(input_path, output, target_lang, bilingual, whisper_provider, llm_provi
         cfg['whisper']['provider'] = whisper_provider
     if llm_provider:
         cfg['translation']['provider'] = llm_provider
+    if source_lang:
+        cfg['whisper']['source_language'] = source_lang
+        cfg['output']['source_language'] = source_lang
     if target_lang:
         cfg['output']['target_language'] = target_lang
     if bilingual:
         cfg['output']['bilingual'] = True
     if embed:
         cfg['output']['embed_in_video'] = True
+    
+    # 获取最终的语言设置
+    final_source_lang = cfg['whisper'].get('source_language', 'auto')
+    final_target_lang = cfg['output'].get('target_language', 'zh')
     
     # 确定输出路径
     if output:
@@ -110,7 +127,7 @@ def main(input_path, output, target_lang, bilingual, whisper_provider, llm_provi
     console.print(f"输出: [cyan]{output_path}[/cyan]")
     console.print(f"Whisper: [yellow]{cfg['whisper'].get('provider', 'local')}[/yellow]")
     console.print(f"翻译: [yellow]{cfg['translation'].get('provider', 'openai')}[/yellow] ({cfg['translation'].get('model', 'default')})")
-    console.print(f"目标语言: [yellow]{cfg['output'].get('target_language', 'zh')}[/yellow]")
+    console.print(f"语言: [yellow]{final_source_lang}[/yellow] → [yellow]{final_target_lang}[/yellow]")
     console.print(f"双语字幕: [yellow]{'是' if cfg['output'].get('bilingual', False) else '否'}[/yellow]")
     console.print()
     

@@ -6,7 +6,7 @@ from .transcribe import Segment
 
 
 # 基础翻译系统提示词
-TRANSLATION_SYSTEM_PROMPT_BASE = """你是一个专业的字幕翻译员。你的任务是将字幕翻译成{target_lang}。
+TRANSLATION_SYSTEM_PROMPT_BASE = """你是一个专业的字幕翻译员。你的任务是将{source_lang}字幕翻译成{target_lang}。
 
 基本要求：
 1. 保持原意，但表达要自然流畅
@@ -22,7 +22,7 @@ TRANSLATION_SYSTEM_PROMPT_BASE = """你是一个专业的字幕翻译员。你�
 """
 
 # 带规则的系统提示词
-TRANSLATION_SYSTEM_PROMPT_WITH_RULES = """你是一个专业的字幕翻译员。你的任务是将字幕翻译成{target_lang}。
+TRANSLATION_SYSTEM_PROMPT_WITH_RULES = """你是一个专业的字幕翻译员。你的任务是将{source_lang}字幕翻译成{target_lang}。
 
 基本要求：
 1. 保持原意，但表达要自然流畅
@@ -100,14 +100,15 @@ def load_translation_rules(lang_code: str) -> Optional[str]:
     return None
 
 
-def _build_system_prompt(target_lang: str, max_chars: int, lang_code: str) -> str:
+def _build_system_prompt(source_lang: str, target_lang: str, max_chars: int, lang_code: str) -> str:
     """
     构建系统提示词
 
     Args:
+        source_lang: 源语言名称
         target_lang: 目标语言名称
         max_chars: 每行最大字符数
-        lang_code: 语言代码
+        lang_code: 目标语言代码
 
     Returns:
         完整的系统提示词
@@ -116,12 +117,14 @@ def _build_system_prompt(target_lang: str, max_chars: int, lang_code: str) -> st
 
     if rules:
         return TRANSLATION_SYSTEM_PROMPT_WITH_RULES.format(
+            source_lang=source_lang,
             target_lang=target_lang,
             max_chars=max_chars,
             rules=rules
         )
     else:
         return TRANSLATION_SYSTEM_PROMPT_BASE.format(
+            source_lang=source_lang,
             target_lang=target_lang,
             max_chars=max_chars
         )
@@ -147,6 +150,7 @@ def translate_segments(
         return []
 
     provider = config.get('translation', {}).get('provider', 'openai')
+    source_lang = config.get('output', {}).get('source_language', 'auto')
     target_lang = config.get('output', {}).get('target_language', 'zh')
     max_chars = config.get('output', {}).get('max_chars_per_line', 40)
     batch_size = config.get('advanced', {}).get('translation_batch_size', 10)
@@ -186,6 +190,7 @@ def translate_segments(
         try:
             translations = translate_fn(
                 batch_texts,
+                source_lang,
                 target_lang,
                 max_chars,
                 config
@@ -253,6 +258,7 @@ def _parse_translations(result_text: str, expected_count: int) -> List[str]:
 
 def _translate_openai(
     texts: List[str],
+    source_lang: str,
     target_lang: str,
     max_chars: int,
     config: Dict[str, Any]
@@ -271,6 +277,7 @@ def _translate_openai(
     client = OpenAI(api_key=api_key, base_url=base_url if base_url else None)
 
     system_prompt = _build_system_prompt(
+        _get_lang_name(source_lang),
         _get_lang_name(target_lang),
         max_chars,
         target_lang
@@ -296,6 +303,7 @@ def _translate_openai(
 
 def _translate_claude(
     texts: List[str],
+    source_lang: str,
     target_lang: str,
     max_chars: int,
     config: Dict[str, Any]
@@ -313,6 +321,7 @@ def _translate_claude(
     client = anthropic.Anthropic(api_key=api_key)
 
     system_prompt = _build_system_prompt(
+        _get_lang_name(source_lang),
         _get_lang_name(target_lang),
         max_chars,
         target_lang
@@ -338,6 +347,7 @@ def _translate_claude(
 
 def _translate_deepseek(
     texts: List[str],
+    source_lang: str,
     target_lang: str,
     max_chars: int,
     config: Dict[str, Any]
@@ -358,6 +368,7 @@ def _translate_deepseek(
     )
 
     system_prompt = _build_system_prompt(
+        _get_lang_name(source_lang),
         _get_lang_name(target_lang),
         max_chars,
         target_lang
@@ -383,6 +394,7 @@ def _translate_deepseek(
 
 def _translate_ollama(
     texts: List[str],
+    source_lang: str,
     target_lang: str,
     max_chars: int,
     config: Dict[str, Any]
@@ -394,6 +406,7 @@ def _translate_ollama(
     model = config['translation'].get('ollama_model', 'qwen2.5:14b')
 
     system_prompt = _build_system_prompt(
+        _get_lang_name(source_lang),
         _get_lang_name(target_lang),
         max_chars,
         target_lang
