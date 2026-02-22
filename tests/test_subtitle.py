@@ -52,18 +52,21 @@ class TestTextEscaping:
     """文本转义测试"""
 
     def test_escape_ass_backslash(self):
-        assert _escape_ass_text("a\\b") == "a\\\\b"
+        # r"a\b" = 'a\b' (3 chars) → r"a\\b" = 'a\\b' (4 chars)
+        assert _escape_ass_text(r"a\b") == r"a\\b"
 
     def test_escape_ass_braces(self):
-        assert _escape_ass_text("{bold}") == "\\{bold\\}"
+        assert _escape_ass_text("{bold}") == r"\{bold\}"
 
     def test_escape_ass_newline(self):
         """ASS 换行应该是 \\N"""
-        assert _escape_ass_text("line1\nline2") == "line1\\Nline2"
+        assert _escape_ass_text("line1\nline2") == r"line1\Nline2"
 
     def test_escape_ass_combined(self):
-        text = "Hello\\World\n{test}"
-        expected = "Hello\\\\World\\N\\{test\\}"
+        # 输入: Hello\World + 换行 + {test}
+        text = "Hello" + "\\" + "World\n{test}"
+        # 输出: Hello\\World\N\{test\}
+        expected = r"Hello\\World\N\{test\}"
         assert _escape_ass_text(text) == expected
 
     def test_escape_ass_normal_text(self):
