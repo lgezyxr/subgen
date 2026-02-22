@@ -25,7 +25,8 @@ def request_device_code() -> dict:
         DEVICE_CODE_URL,
         data={
             "client_id": CLIENT_ID,
-            "scope": "read:user"
+            # Empty scope - Copilot uses the default OAuth app permissions
+            "scope": ""
         },
         headers={
             "Accept": "application/json"
@@ -103,12 +104,27 @@ def get_copilot_token(github_token: str) -> dict:
         COPILOT_TOKEN_URL,
         headers={
             "Authorization": f"token {github_token}",
-            "Accept": "application/json"
+            "Accept": "application/json",
+            "Editor-Version": "vscode/1.85.0",
+            "Editor-Plugin-Version": "copilot/1.0.0",
+            "User-Agent": "GitHubCopilotChat/0.12.0"
         }
     )
 
     if response.status_code == 401:
         raise CopilotAuthError("GitHub token is invalid or expired. Please login again.")
+
+    if response.status_code == 403:
+        # Try to get more details from response
+        try:
+            err_data = response.json()
+            msg = err_data.get("message", "Access denied")
+        except Exception:
+            msg = response.text[:200] if response.text else "Access denied"
+        raise CopilotAuthError(
+            f"Copilot access denied (HTTP 403): {msg}\n"
+            "Make sure you have an active GitHub Copilot subscription."
+        )
 
     if not response.ok:
         raise CopilotAuthError(f"Failed to get Copilot token: HTTP {response.status_code}")
