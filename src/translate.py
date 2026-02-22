@@ -1,5 +1,7 @@
 """Translation module"""
 
+import time
+import json
 from pathlib import Path
 from typing import Dict, Any, List, Callable, Optional
 from .transcribe import Segment
@@ -169,6 +171,8 @@ def translate_segments(
         translate_fn = _translate_ollama
     elif provider == 'copilot':
         translate_fn = _translate_copilot
+    elif provider == 'chatgpt':
+        translate_fn = _translate_chatgpt
     else:
         raise ValueError(f"Unsupported translation provider: {provider}")
 
@@ -519,6 +523,112 @@ def _translate_copilot(
 
     result = response.json()
     result_text = result['choices'][0]['message']['content'].strip()
+    return _parse_translations(result_text, len(texts))
+
+
+def _translate_chatgpt(
+    texts: List[str],
+    source_lang: str,
+    target_lang: str,
+    max_chars: int,
+    config: Dict[str, Any]
+) -> List[str]:
+    """Translate using ChatGPT Plus (via OAuth login)"""
+    import requests
+    from .auth.openai_codex import get_openai_codex_token, OpenAICodexAuthError, openai_codex_login
+
+    # Get ChatGPT token (will refresh if needed)
+    try:
+        access_token, account_id = get_openai_codex_token()
+    except OpenAICodexAuthError as e:
+        # Not logged in, try interactive login
+        print(f"\n⚠️  {e}")
+        print("Starting ChatGPT login...\n")
+        try:
+            openai_codex_login()
+            access_token, account_id = get_openai_codex_token()
+        except OpenAICodexAuthError as e2:
+            raise ValueError(f"ChatGPT authentication failed: {e2}")
+
+    system_prompt = _build_system_prompt(
+        _get_lang_name(source_lang),
+        _get_lang_name(target_lang),
+        max_chars,
+        target_lang
+    )
+
+    user_prompt = TRANSLATION_USER_PROMPT.format(
+        count=len(texts),
+        subtitles="\n".join(texts)
+    )
+
+    # Get model from config, default to gpt-4o
+    model = config.get('translation', {}).get('model', 'gpt-4o')
+
+    # Call ChatGPT backend API (Codex/Responses API)
+    response = requests.post(
+        "https://chatgpt.com/backend-api/conversation",
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+            "chatgpt-account-id": account_id,
+            "oai-device-id": account_id,
+            "oai-language": "en-US",
+        },
+        json={
+            "action": "next",
+            "messages": [
+                {
+                    "id": f"msg-{int(time.time())}",
+                    "author": {"role": "user"},
+                    "content": {
+                        "content_type": "text",
+                        "parts": [f"{system_prompt}\n\n{user_prompt}"]
+                    }
+                }
+            ],
+            "model": model,
+            "timezone_offset_min": -480,
+            "history_and_training_disabled": True,
+        },
+        timeout=120,
+        stream=True  # ChatGPT uses SSE streaming
+    )
+
+    if response.status_code == 401:
+        raise ValueError("ChatGPT token expired. Please run: subgen auth login chatgpt")
+
+    if response.status_code == 403:
+        raise ValueError("ChatGPT access denied. Make sure you have a Plus/Pro subscription.")
+
+    if not response.ok:
+        raise ValueError(f"ChatGPT API error: {response.status_code}")
+
+    # Parse SSE stream response
+    result_text = ""
+    for line in response.iter_lines():
+        if not line:
+            continue
+        line = line.decode('utf-8')
+        if line.startswith('data: '):
+            data = line[6:]
+            if data == '[DONE]':
+                break
+            try:
+                event = json.loads(data)
+                if 'message' in event:
+                    msg = event['message']
+                    if msg.get('author', {}).get('role') == 'assistant':
+                        content = msg.get('content', {})
+                        parts = content.get('parts', [])
+                        if parts:
+                            result_text = parts[0]
+            except json.JSONDecodeError:
+                continue
+
+    if not result_text:
+        raise ValueError("Empty response from ChatGPT")
+
     return _parse_translations(result_text, len(texts))
 
 

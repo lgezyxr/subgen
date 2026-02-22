@@ -41,7 +41,7 @@ def cli():
 @click.option('--to', '-t', 'target_lang', default=None, help='Target translation language (e.g., zh, ja, ko)')
 @click.option('--bilingual', '-b', is_flag=True, help='Generate bilingual subtitles')
 @click.option('--whisper-provider', type=click.Choice(['local', 'mlx', 'openai', 'groq']), help='Override Whisper provider from config')
-@click.option('--llm-provider', type=click.Choice(['openai', 'claude', 'deepseek', 'ollama', 'copilot']), help='Override LLM provider from config')
+@click.option('--llm-provider', type=click.Choice(['openai', 'claude', 'deepseek', 'ollama', 'copilot', 'chatgpt']), help='Override LLM provider from config')
 @click.option('--embed', is_flag=True, help='Burn subtitles into video')
 @click.option('--config', '-c', type=click.Path(), default='config.yaml', help='Config file path')
 @click.option('--verbose', '-v', is_flag=True, help='Show verbose logs')
@@ -279,13 +279,14 @@ def auth():
 
 
 @auth.command('login')
-@click.argument('provider', type=click.Choice(['copilot']))
+@click.argument('provider', type=click.Choice(['copilot', 'chatgpt']))
 def auth_login(provider):
     """Login to an OAuth provider.
 
     \b
     Supported providers:
         copilot    GitHub Copilot (uses your GitHub subscription)
+        chatgpt    ChatGPT Plus/Pro (uses your OpenAI subscription)
     """
     if provider == 'copilot':
         from src.auth.copilot import copilot_login, CopilotAuthError
@@ -301,14 +302,32 @@ def auth_login(provider):
             console.print(f"\n[red]Login failed: {e}[/red]")
             raise SystemExit(1)
 
+    elif provider == 'chatgpt':
+        from src.auth.openai_codex import openai_codex_login, OpenAICodexAuthError
+
+        console.print("\n[bold]ChatGPT Plus/Pro Login[/bold]")
+        console.print("[dim]A browser window will open for authentication.[/dim]\n")
+
+        try:
+            openai_codex_login()
+            console.print("\n[green]✅ Successfully logged in to ChatGPT![/green]")
+            console.print("You can now use: --llm-provider chatgpt\n")
+
+        except OpenAICodexAuthError as e:
+            console.print(f"\n[red]Login failed: {e}[/red]")
+            raise SystemExit(1)
+
 
 @auth.command('logout')
-@click.argument('provider', type=click.Choice(['copilot']))
+@click.argument('provider', type=click.Choice(['copilot', 'chatgpt']))
 def auth_logout(provider):
     """Logout from an OAuth provider."""
     from src.auth.store import delete_credential
 
-    if delete_credential(provider):
+    # Map provider names to credential keys
+    cred_key = 'openai-codex' if provider == 'chatgpt' else provider
+
+    if delete_credential(cred_key):
         console.print(f"[green]✅ Logged out from {provider}[/green]")
     else:
         console.print(f"[yellow]Not logged in to {provider}[/yellow]")
@@ -319,9 +338,16 @@ def auth_status():
     """Show authentication status for all providers."""
     from src.auth.store import get_credentials_path
     from src.auth.copilot import is_copilot_logged_in
+    from src.auth.openai_codex import is_openai_codex_logged_in
 
     console.print("\n[bold]Authentication Status[/bold]\n")
     console.print(f"Credentials file: [dim]{get_credentials_path()}[/dim]\n")
+
+    # ChatGPT
+    if is_openai_codex_logged_in():
+        console.print("  [green]●[/green] ChatGPT Plus/Pro: [green]logged in[/green]")
+    else:
+        console.print("  [dim]○[/dim] ChatGPT Plus/Pro: [dim]not logged in[/dim]")
 
     # Copilot
     if is_copilot_logged_in():

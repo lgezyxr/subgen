@@ -14,6 +14,13 @@ from .copilot import (
     CopilotAuthError
 )
 
+from .openai_codex import (
+    openai_codex_login,
+    get_openai_codex_token,
+    is_openai_codex_logged_in,
+    OpenAICodexAuthError
+)
+
 __all__ = [
     # Store
     "get_credential",
@@ -25,4 +32,9 @@ __all__ = [
     "get_copilot_api_token",
     "is_copilot_logged_in",
     "CopilotAuthError",
+    # OpenAI Codex (ChatGPT Plus)
+    "openai_codex_login",
+    "get_openai_codex_token",
+    "is_openai_codex_logged_in",
+    "OpenAICodexAuthError",
 ]
