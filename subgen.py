@@ -171,9 +171,15 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
     console.print(f"Input: [cyan]{input_path}[/cyan]")
     console.print(f"Output: [cyan]{output_path}[/cyan]")
     console.print(f"Whisper: [yellow]{cfg['whisper'].get('provider', 'local')}[/yellow]")
-    console.print(f"Translation: [yellow]{cfg['translation'].get('provider', 'openai')}[/yellow] ({cfg['translation'].get('model', 'default')})")
-    console.print(f"Language: [yellow]{final_source_lang}[/yellow] → [yellow]{final_target_lang}[/yellow]")
-    console.print(f"Bilingual: [yellow]{'Yes' if cfg['output'].get('bilingual', False) else 'No'}[/yellow]")
+
+    if no_translate:
+        console.print("Translation: [dim]disabled[/dim]")
+        console.print(f"Language: [yellow]{final_source_lang}[/yellow] (transcription only)")
+    else:
+        console.print(f"Translation: [yellow]{cfg['translation'].get('provider', 'openai')}[/yellow] ({cfg['translation'].get('model', 'default')})")
+        console.print(f"Language: [yellow]{final_source_lang}[/yellow] → [yellow]{final_target_lang}[/yellow]")
+        console.print(f"Bilingual: [yellow]{'Yes' if cfg['output'].get('bilingual', False) else 'No'}[/yellow]")
+
     console.print()
 
     audio_path = None
