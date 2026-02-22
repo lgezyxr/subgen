@@ -1,6 +1,5 @@
 """翻译模块单元测试"""
 
-import pytest
 from src.translate import _parse_translations
 
 

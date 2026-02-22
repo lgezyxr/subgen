@@ -35,13 +35,13 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 def load_config(config_path: str = "config.yaml") -> Dict[str, Any]:
     """加载配置文件"""
     path = Path(config_path)
-    
+
     if not path.exists():
         raise FileNotFoundError(f"配置文件不存在: {config_path}")
-    
+
     with open(path, 'r', encoding='utf-8') as f:
         config = yaml.safe_load(f) or {}
-    
+
     # 与默认配置合并
     import copy
     result = copy.deepcopy(DEFAULT_CONFIG)
@@ -50,20 +50,20 @@ def load_config(config_path: str = "config.yaml") -> Dict[str, Any]:
             result[key].update(value)
         else:
             result[key] = value
-    
+
     return result
 
 
 def get_api_key(config: Dict[str, Any], provider: str, key_name: str) -> str:
     """获取 API Key，支持从环境变量读取"""
     import os
-    
+
     # 先从配置文件读
     key = config.get(provider, {}).get(key_name, '')
-    
+
     # 如果为空，尝试从环境变量读
     if not key:
         env_var_name = f"{provider.upper()}_{key_name.upper()}"
         key = os.environ.get(env_var_name, '')
-    
+
     return key

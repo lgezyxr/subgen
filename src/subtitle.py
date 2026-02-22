@@ -13,7 +13,7 @@ def generate_subtitle(
 ) -> None:
     """
     生成字幕文件
-    
+
     Args:
         segments: 字幕片段列表
         output_path: 输出文件路径
@@ -21,10 +21,10 @@ def generate_subtitle(
     """
     if not segments:
         raise ValueError("没有字幕内容可生成")
-    
+
     format_type = config.get('output', {}).get('format', 'srt')
     bilingual = config.get('output', {}).get('bilingual', False)
-    
+
     if format_type == 'srt':
         _generate_srt(segments, output_path, bilingual)
     elif format_type == 'ass':
@@ -85,26 +85,26 @@ def _generate_srt(segments: List[Segment], output_path: Path, bilingual: bool) -
     """生成 SRT 格式字幕"""
     lines = []
     subtitle_index = 0  # 独立计数器，确保编号连续
-    
+
     for seg in segments:
         # 跳过空字幕
         content = seg.translated or seg.text
         if not content.strip():
             continue
-        
+
         subtitle_index += 1
         lines.append(str(subtitle_index))
         lines.append(f"{_format_time_srt(seg.start)} --> {_format_time_srt(seg.end)}")
-        
+
         if bilingual and seg.text and seg.translated:
             # 双语: 译文在上，原文在下
             lines.append(seg.translated)
             lines.append(seg.text)
         else:
             lines.append(content)
-        
+
         lines.append("")  # 空行分隔
-    
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(lines), encoding='utf-8')
 
@@ -112,22 +112,22 @@ def _generate_srt(segments: List[Segment], output_path: Path, bilingual: bool) -
 def _generate_vtt(segments: List[Segment], output_path: Path, bilingual: bool) -> None:
     """生成 WebVTT 格式字幕"""
     lines = ["WEBVTT", ""]
-    
+
     for seg in segments:
         content = seg.translated or seg.text
         if not content.strip():
             continue
-        
+
         lines.append(f"{_format_time_vtt(seg.start)} --> {_format_time_vtt(seg.end)}")
-        
+
         if bilingual and seg.text and seg.translated:
             lines.append(seg.translated)
             lines.append(seg.text)
         else:
             lines.append(content)
-        
+
         lines.append("")
-    
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(lines), encoding='utf-8')
 
@@ -155,17 +155,17 @@ Style: Secondary,Arial,45,&H00AAAAAA,&H000000FF,&H00000000,&H80000000,0,0,0,0,10
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
-    
+
     lines = [header]
-    
+
     for seg in segments:
         content = seg.translated or seg.text
         if not content.strip():
             continue
-        
+
         start = _format_time_ass(seg.start)
         end = _format_time_ass(seg.end)
-        
+
         if bilingual and seg.text and seg.translated:
             # 双语: 两行
             trans_escaped = _escape_ass_text(seg.translated)
@@ -175,7 +175,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         else:
             escaped = _escape_ass_text(content)
             lines.append(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{escaped}")
-    
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(lines), encoding='utf-8')
 
@@ -201,7 +201,7 @@ def embed_subtitle(
 ) -> None:
     """
     将字幕烧录进视频（硬字幕）
-    
+
     Args:
         video_path: 原视频路径
         subtitle_path: 字幕文件路径
@@ -209,7 +209,7 @@ def embed_subtitle(
         config: 配置字典
     """
     subtitle_path_escaped = _escape_ffmpeg_filter_path(str(subtitle_path.absolute()))
-    
+
     cmd = [
         'ffmpeg',
         '-i', str(video_path),
@@ -219,9 +219,9 @@ def embed_subtitle(
         '-loglevel', 'error',
         str(output_path)
     ]
-    
+
     result = subprocess.run(cmd, capture_output=True, text=True)
-    
+
     if result.returncode != 0:
         raise RuntimeError(f"字幕烧录失败: {result.stderr}")
 
@@ -234,7 +234,7 @@ def add_subtitle_track(
 ) -> None:
     """
     将字幕作为轨道添加到视频（软字幕）
-    
+
     Args:
         video_path: 原视频路径
         subtitle_path: 字幕文件路径
@@ -252,8 +252,8 @@ def add_subtitle_track(
         '-loglevel', 'error',
         str(output_path)
     ]
-    
+
     result = subprocess.run(cmd, capture_output=True, text=True)
-    
+
     if result.returncode != 0:
         raise RuntimeError(f"添加字幕轨道失败: {result.stderr}")

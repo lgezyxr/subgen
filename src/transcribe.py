@@ -17,17 +17,17 @@ class Segment:
 def transcribe_audio(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
     """
     对音频进行语音识别
-    
+
     Args:
         audio_path: 音频文件路径
         config: 配置字典
-        
+
     Returns:
         字幕片段列表
     """
     whisper_config = config.get('whisper', {})
     provider = whisper_config.get('provider', 'local')
-    
+
     if provider == 'local':
         return _transcribe_local(audio_path, config)
     elif provider == 'openai':
@@ -47,23 +47,23 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
             "本地 Whisper 需要安装 faster-whisper:\n"
             "pip install faster-whisper"
         )
-    
+
     model_name = config['whisper'].get('local_model', 'large-v3')
     device = config['whisper'].get('device', 'cuda')
-    
+
     # 根据设备选择计算类型
     compute_type = "float16" if device == "cuda" else "int8"
-    
+
     # 加载模型
     model = WhisperModel(model_name, device=device, compute_type=compute_type)
-    
+
     # 转录
     segments_iter, info = model.transcribe(
         str(audio_path),
         word_timestamps=True,
         vad_filter=True,  # 使用 VAD 过滤静音
     )
-    
+
     segments = []
     for seg in segments_iter:
         segments.append(Segment(
@@ -71,7 +71,7 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
             end=seg.end,
             text=seg.text.strip()
         ))
-    
+
     return segments
 
 
@@ -79,16 +79,16 @@ def _transcribe_openai(audio_path: Path, config: Dict[str, Any]) -> List[Segment
     """使用 OpenAI Whisper API 进行语音识别"""
     from openai import OpenAI
     import os
-    
+
     api_key = config['whisper'].get('openai_key', '')
     if not api_key:
         api_key = os.environ.get('OPENAI_API_KEY', '')
-    
+
     if not api_key:
         raise ValueError("OpenAI API Key 未配置")
-    
+
     client = OpenAI(api_key=api_key)
-    
+
     # OpenAI Whisper API 有 25MB 文件大小限制
     file_size = audio_path.stat().st_size
     if file_size > 25 * 1024 * 1024:
@@ -96,7 +96,7 @@ def _transcribe_openai(audio_path: Path, config: Dict[str, Any]) -> List[Segment
             f"音频文件 ({file_size / 1024 / 1024:.1f}MB) 超过 OpenAI 25MB 限制。"
             "请使用本地 Whisper 或分割音频。"
         )
-    
+
     with open(audio_path, 'rb') as f:
         response = client.audio.transcriptions.create(
             model="whisper-1",
@@ -104,7 +104,7 @@ def _transcribe_openai(audio_path: Path, config: Dict[str, Any]) -> List[Segment
             response_format="verbose_json",
             timestamp_granularities=["segment"]
         )
-    
+
     segments = []
     # OpenAI SDK v1+ 返回的是对象属性，不是字典
     for seg in response.segments:
@@ -113,7 +113,7 @@ def _transcribe_openai(audio_path: Path, config: Dict[str, Any]) -> List[Segment
             end=seg.end,
             text=seg.text.strip()
         ))
-    
+
     return segments
 
 
@@ -126,16 +126,16 @@ def _transcribe_groq(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
             "Groq API 需要安装 groq:\n"
             "pip install groq"
         )
-    
+
     import os
-    
+
     api_key = config['whisper'].get('groq_key', '')
     if not api_key:
         api_key = os.environ.get('GROQ_API_KEY', '')
-    
+
     if not api_key:
         raise ValueError("Groq API Key 未配置")
-    
+
     # Groq 也有文件大小限制 (25MB)
     file_size = audio_path.stat().st_size
     if file_size > 25 * 1024 * 1024:
@@ -143,9 +143,9 @@ def _transcribe_groq(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
             f"音频文件 ({file_size / 1024 / 1024:.1f}MB) 超过 Groq 25MB 限制。"
             "请使用本地 Whisper 或分割音频。"
         )
-    
+
     client = Groq(api_key=api_key)
-    
+
     with open(audio_path, 'rb') as f:
         response = client.audio.transcriptions.create(
             model="whisper-large-v3",
@@ -153,7 +153,7 @@ def _transcribe_groq(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
             response_format="verbose_json",
             timestamp_granularities=["segment"],  # 确保返回 segments
         )
-    
+
     segments = []
     # 检查 response 是否有 segments 属性
     if not hasattr(response, 'segments') or not response.segments:
@@ -161,12 +161,12 @@ def _transcribe_groq(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
         if hasattr(response, 'text') and response.text:
             return [Segment(start=0.0, end=0.0, text=response.text.strip())]
         return []
-    
+
     for seg in response.segments:
         segments.append(Segment(
             start=seg.start,
             end=seg.end,
             text=seg.text.strip()
         ))
-    
+
     return segments

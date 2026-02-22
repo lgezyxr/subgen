@@ -1,6 +1,5 @@
 """音频模块单元测试"""
 
-import pytest
 from unittest.mock import patch
 from src.audio import check_ffmpeg, check_ffprobe
 

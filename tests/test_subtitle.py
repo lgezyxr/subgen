@@ -1,6 +1,5 @@
 """字幕模块单元测试"""
 
-import pytest
 from src.subtitle import (
     _format_time_srt,
     _format_time_vtt,
@@ -78,18 +77,19 @@ class TestFFmpegPathEscaping:
     """FFmpeg 路径转义测试"""
 
     def test_escape_backslash_to_forward(self):
-        assert _escape_ffmpeg_filter_path("C:\\Users\\test") == "C:/Users/test"
+        # 反斜杠转正斜杠，但冒号也要转义
+        assert _escape_ffmpeg_filter_path("C:\\Users\\test") == r"C\:/Users/test"
 
     def test_escape_colon(self):
-        assert _escape_ffmpeg_filter_path("C:/file") == "C\\:/file"
+        assert _escape_ffmpeg_filter_path("C:/file") == r"C\:/file"
 
     def test_escape_single_quote(self):
-        assert _escape_ffmpeg_filter_path("it's") == "it\\'s"
+        assert _escape_ffmpeg_filter_path("it's") == r"it\'s"
 
     def test_escape_brackets(self):
-        assert _escape_ffmpeg_filter_path("file[1]") == "file\\[1\\]"
+        assert _escape_ffmpeg_filter_path("file[1]") == r"file\[1\]"
 
     def test_escape_unix_path(self):
-        """Unix 路径基本不变"""
+        """Unix 路径只转义冒号（如果有的话）"""
         result = _escape_ffmpeg_filter_path("/home/user/video.srt")
         assert result == "/home/user/video.srt"

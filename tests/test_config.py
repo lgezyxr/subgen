@@ -1,8 +1,6 @@
 """配置模块单元测试"""
 
 import pytest
-import tempfile
-from pathlib import Path
 from src.config import load_config, DEFAULT_CONFIG
 
 
