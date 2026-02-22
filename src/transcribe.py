@@ -1,5 +1,6 @@
 """Speech recognition module"""
 
+import re
 from pathlib import Path
 from typing import Dict, Any, List
 from dataclasses import dataclass
@@ -12,6 +13,67 @@ class Segment:
     end: float        # End time (seconds)
     text: str         # Original text
     translated: str = ""  # Translated text
+
+
+def merge_segments_by_sentence(segments: List[Segment], max_duration: float = 8.0) -> List[Segment]:
+    """
+    Merge segments to form complete sentences.
+
+    Strategy:
+    1. Merge segments that don't end with sentence-ending punctuation
+    2. Keep merged segments under max_duration seconds
+    3. Preserve original timing boundaries
+
+    Args:
+        segments: List of transcribed segments
+        max_duration: Maximum duration for a merged segment (seconds)
+
+    Returns:
+        List of merged segments
+    """
+    if not segments:
+        return segments
+
+    # Sentence ending patterns (for various languages)
+    sentence_end_pattern = re.compile(r'[.!?。！？…]$')
+
+    merged = []
+    current = None
+
+    for seg in segments:
+        text = seg.text.strip()
+        if not text:
+            continue
+
+        if current is None:
+            current = Segment(
+                start=seg.start,
+                end=seg.end,
+                text=text
+            )
+        else:
+            # Check if we should merge
+            potential_duration = seg.end - current.start
+            current_ends_sentence = sentence_end_pattern.search(current.text)
+
+            if current_ends_sentence or potential_duration > max_duration:
+                # Current segment is complete, start new one
+                merged.append(current)
+                current = Segment(
+                    start=seg.start,
+                    end=seg.end,
+                    text=text
+                )
+            else:
+                # Merge with current
+                current.end = seg.end
+                current.text = current.text + " " + text
+
+    # Don't forget the last segment
+    if current is not None:
+        merged.append(current)
+
+    return merged
 
 
 def transcribe_audio(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
@@ -29,15 +91,24 @@ def transcribe_audio(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
     provider = whisper_config.get('provider', 'local')
 
     if provider == 'local':
-        return _transcribe_local(audio_path, config)
+        segments = _transcribe_local(audio_path, config)
     elif provider == 'mlx':
-        return _transcribe_mlx(audio_path, config)
+        segments = _transcribe_mlx(audio_path, config)
     elif provider == 'openai':
-        return _transcribe_openai(audio_path, config)
+        segments = _transcribe_openai(audio_path, config)
     elif provider == 'groq':
-        return _transcribe_groq(audio_path, config)
+        segments = _transcribe_groq(audio_path, config)
     else:
         raise ValueError(f"Unsupported Whisper provider: {provider}")
+
+    # Post-process: merge segments by sentence boundaries
+    merge_sentences = config.get('advanced', {}).get('merge_sentences', True)
+    max_segment_duration = config.get('advanced', {}).get('max_segment_duration', 8.0)
+
+    if merge_sentences:
+        segments = merge_segments_by_sentence(segments, max_duration=max_segment_duration)
+
+    return segments
 
 
 def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
