@@ -1,13 +1,14 @@
 """翻译模块"""
 
+from pathlib import Path
 from typing import Dict, Any, List, Callable, Optional
 from .transcribe import Segment
 
 
-# 翻译系统提示词
-TRANSLATION_SYSTEM_PROMPT = """你是一个专业的字幕翻译员。你的任务是将字幕翻译成{target_lang}。
+# 基础翻译系统提示词
+TRANSLATION_SYSTEM_PROMPT_BASE = """你是一个专业的字幕翻译员。你的任务是将字幕翻译成{target_lang}。
 
-翻译要求：
+基本要求：
 1. 保持原意，但表达要自然流畅
 2. 字幕要简洁，适合屏幕显示（每行不超过{max_chars}个字符）
 3. 保持前后文连贯性
@@ -20,10 +21,110 @@ TRANSLATION_SYSTEM_PROMPT = """你是一个专业的字幕翻译员。你的任�
 - 输入多少行，输出多少行（严格一一对应）
 """
 
+# 带规则的系统提示词
+TRANSLATION_SYSTEM_PROMPT_WITH_RULES = """你是一个专业的字幕翻译员。你的任务是将字幕翻译成{target_lang}。
+
+基本要求：
+1. 保持原意，但表达要自然流畅
+2. 字幕要简洁，适合屏幕显示（每行不超过{max_chars}个字符）
+3. 保持前后文连贯性
+4. 人名、地名等专有名词保持一致
+5. 口语化表达，避免书面语
+
+{target_lang}翻译规则（必须严格遵守）：
+{rules}
+
+输出格式：
+- 只输出翻译结果，每行对应一条字幕
+- 不要添加序号或额外说明
+- 输入多少行，输出多少行（严格一一对应）
+"""
+
 TRANSLATION_USER_PROMPT = """请翻译以下 {count} 条字幕（每行一条，输出也必须是 {count} 行）：
 
 {subtitles}
 """
+
+
+def _get_rules_dir() -> Path:
+    """获取规则文件目录"""
+    # 优先查找项目根目录下的 rules/
+    # 支持多种运行方式
+    possible_paths = [
+        Path(__file__).parent.parent / 'rules',  # src/ 的上一级
+        Path.cwd() / 'rules',  # 当前工作目录
+        Path.home() / '.subgen' / 'rules',  # 用户目录
+    ]
+    for path in possible_paths:
+        if path.exists():
+            return path
+    return possible_paths[0]  # 返回默认路径（即使不存在）
+
+
+def load_translation_rules(lang_code: str) -> Optional[str]:
+    """
+    加载指定语言的翻译规则
+
+    Args:
+        lang_code: 语言代码 (如 'zh', 'ja', 'en')
+
+    Returns:
+        规则内容字符串，如果没有找到则返回 None
+    """
+    rules_dir = _get_rules_dir()
+
+    # 尝试加载顺序：精确匹配 -> 语言族 -> 默认
+    # 例如 zh-TW -> zh-TW.md -> zh.md -> default.md
+    candidates = [
+        rules_dir / f'{lang_code}.md',
+        rules_dir / f'{lang_code.split("-")[0]}.md',  # zh-TW -> zh
+        rules_dir / 'default.md',
+    ]
+
+    for rule_file in candidates:
+        if rule_file.exists():
+            try:
+                content = rule_file.read_text(encoding='utf-8')
+                # 移除 Markdown 标题，只保留内容
+                lines = []
+                for line in content.split('\n'):
+                    # 跳过一级标题
+                    if line.startswith('# '):
+                        continue
+                    lines.append(line)
+                return '\n'.join(lines).strip()
+            except Exception as e:
+                print(f"警告：读取规则文件失败 {rule_file}: {e}")
+                continue
+
+    return None
+
+
+def _build_system_prompt(target_lang: str, max_chars: int, lang_code: str) -> str:
+    """
+    构建系统提示词
+
+    Args:
+        target_lang: 目标语言名称
+        max_chars: 每行最大字符数
+        lang_code: 语言代码
+
+    Returns:
+        完整的系统提示词
+    """
+    rules = load_translation_rules(lang_code)
+
+    if rules:
+        return TRANSLATION_SYSTEM_PROMPT_WITH_RULES.format(
+            target_lang=target_lang,
+            max_chars=max_chars,
+            rules=rules
+        )
+    else:
+        return TRANSLATION_SYSTEM_PROMPT_BASE.format(
+            target_lang=target_lang,
+            max_chars=max_chars
+        )
 
 
 def translate_segments(
@@ -169,9 +270,10 @@ def _translate_openai(
 
     client = OpenAI(api_key=api_key, base_url=base_url if base_url else None)
 
-    system_prompt = TRANSLATION_SYSTEM_PROMPT.format(
-        target_lang=_get_lang_name(target_lang),
-        max_chars=max_chars
+    system_prompt = _build_system_prompt(
+        _get_lang_name(target_lang),
+        max_chars,
+        target_lang
     )
 
     user_prompt = TRANSLATION_USER_PROMPT.format(
@@ -210,9 +312,10 @@ def _translate_claude(
 
     client = anthropic.Anthropic(api_key=api_key)
 
-    system_prompt = TRANSLATION_SYSTEM_PROMPT.format(
-        target_lang=_get_lang_name(target_lang),
-        max_chars=max_chars
+    system_prompt = _build_system_prompt(
+        _get_lang_name(target_lang),
+        max_chars,
+        target_lang
     )
 
     user_prompt = TRANSLATION_USER_PROMPT.format(
@@ -254,9 +357,10 @@ def _translate_deepseek(
         base_url="https://api.deepseek.com/v1"
     )
 
-    system_prompt = TRANSLATION_SYSTEM_PROMPT.format(
-        target_lang=_get_lang_name(target_lang),
-        max_chars=max_chars
+    system_prompt = _build_system_prompt(
+        _get_lang_name(target_lang),
+        max_chars,
+        target_lang
     )
 
     user_prompt = TRANSLATION_USER_PROMPT.format(
@@ -289,9 +393,10 @@ def _translate_ollama(
     host = config['translation'].get('ollama_host', 'http://localhost:11434')
     model = config['translation'].get('ollama_model', 'qwen2.5:14b')
 
-    system_prompt = TRANSLATION_SYSTEM_PROMPT.format(
-        target_lang=_get_lang_name(target_lang),
-        max_chars=max_chars
+    system_prompt = _build_system_prompt(
+        _get_lang_name(target_lang),
+        max_chars,
+        target_lang
     )
 
     user_prompt = TRANSLATION_USER_PROMPT.format(
