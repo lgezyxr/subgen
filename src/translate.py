@@ -47,7 +47,7 @@ TRANSLATION_USER_PROMPT = """Please translate the following {count} subtitles (o
 {subtitles}
 """
 
-# Sentence-aware translation prompt
+# Sentence-aware translation prompt (legacy, without word alignment)
 SENTENCE_TRANSLATION_PROMPT = """You are a professional subtitle translator. Translate {source_lang} to {target_lang}.
 
 The following is ONE complete sentence that spans {num_parts} subtitle segments.
@@ -63,6 +63,29 @@ Original sentence (split across {num_parts} segments):
 {sentence}
 
 Output exactly {num_parts} lines, one translation part per line:
+"""
+
+# Word-aligned translation prompt
+WORD_ALIGNED_TRANSLATION_PROMPT = """You are a professional subtitle translator. Translate {source_lang} to {target_lang}.
+
+The following sentence has word-level positions. Translate it and split into subtitle segments.
+For each segment, indicate which English word position it should END at.
+
+English sentence with word positions:
+{words_with_positions}
+
+Requirements:
+1. Translate the complete sentence naturally
+2. Split into {min_segments}-{max_segments} subtitle segments (fewer is better, but each ≤{max_chars} chars)
+3. Each segment should end at a natural break point
+4. Choose end positions that align semantically (e.g., "Marty Firestone" = "马蒂·法尔斯通" should be in same segment)
+
+Output format (one segment per line):
+translated text | end: N
+
+Example:
+现在和我在一起的是 | end: 4
+Travel Secure公司总裁马蒂·法尔斯通 | end: 11
 """
 
 
@@ -281,11 +304,13 @@ def translate_segments_sentence_aware(
     progress_callback: Optional[Callable[[int], None]] = None
 ) -> List[Segment]:
     """
-    Translate segments with sentence awareness.
+    Translate segments with sentence awareness and word-level alignment.
     
-    Groups segments into complete sentences, translates each sentence,
-    and lets the LLM decide how to split the translation.
+    If word-level timestamps are available, uses them to create precise
+    subtitle timing based on LLM semantic understanding.
     """
+    from .transcribe import Segment, Word
+    
     if not segments:
         return segments
     
@@ -311,69 +336,175 @@ def translate_segments_sentence_aware(
         else:
             raise ValueError(f"Unsupported translation provider: {provider}")
     
+    # Check if we have word-level timestamps
+    has_word_timestamps = any(seg.words for seg in segments)
+    
     # Group segments by sentence
     groups = _group_segments_by_sentence(segments)
     
     translated_segments = []
     
     for group in groups:
-        num_parts = len(group)
+        # Collect all words from this sentence group
+        all_words = []
+        for seg in group:
+            all_words.extend(seg.words)
         
-        if num_parts == 1:
-            # Single segment - translate normally
-            seg = group[0]
+        # Use word-aligned translation if we have word data
+        if has_word_timestamps and all_words:
             try:
-                translations = translate_fn(
-                    [seg.text],
-                    source_lang,
-                    target_lang,
-                    max_chars,
-                    config
+                new_segments = _translate_with_word_alignment(
+                    group, all_words, source_lang, target_lang, max_chars, config
                 )
-                seg.translated = translations[0] if translations else seg.text
+                translated_segments.extend(new_segments)
             except Exception as e:
-                print(f"Translation failed: {e}")
-                seg.translated = seg.text
-            translated_segments.append(seg)
-        else:
-            # Multiple segments - use sentence-aware prompt
-            merged_text = " ".join(seg.text.strip() for seg in group)
-            
-            prompt = SENTENCE_TRANSLATION_PROMPT.format(
-                source_lang=_get_lang_name(source_lang),
-                target_lang=_get_lang_name(target_lang),
-                num_parts=num_parts,
-                max_chars=max_chars,
-                sentence=merged_text
-            )
-            
-            try:
-                # Call LLM with the sentence-aware prompt
-                translations = _translate_sentence_group(
-                    prompt,
-                    num_parts,
-                    config
-                )
-                
-                # Assign translations to segments
-                for idx, seg in enumerate(group):
-                    if idx < len(translations):
-                        seg.translated = translations[idx].strip()
-                    else:
+                print(f"Word-aligned translation failed: {e}, falling back...")
+                # Fallback to simple translation
+                for seg in group:
+                    try:
+                        translations = translate_fn([seg.text], source_lang, target_lang, max_chars, config)
+                        seg.translated = translations[0] if translations else seg.text
+                    except:
                         seg.translated = seg.text
                     translated_segments.append(seg)
-                    
-            except Exception as e:
-                print(f"Sentence translation failed: {e}")
-                # Fallback: keep original text
-                for seg in group:
+        else:
+            # No word timestamps - use legacy approach
+            num_parts = len(group)
+            
+            if num_parts == 1:
+                seg = group[0]
+                try:
+                    translations = translate_fn([seg.text], source_lang, target_lang, max_chars, config)
+                    seg.translated = translations[0] if translations else seg.text
+                except Exception as e:
+                    print(f"Translation failed: {e}")
                     seg.translated = seg.text
-                    translated_segments.append(seg)
+                translated_segments.append(seg)
+            else:
+                merged_text = " ".join(seg.text.strip() for seg in group)
+                prompt = SENTENCE_TRANSLATION_PROMPT.format(
+                    source_lang=_get_lang_name(source_lang),
+                    target_lang=_get_lang_name(target_lang),
+                    num_parts=num_parts,
+                    max_chars=max_chars,
+                    sentence=merged_text
+                )
+                
+                try:
+                    translations = _translate_sentence_group(prompt, num_parts, config)
+                    for idx, seg in enumerate(group):
+                        if idx < len(translations):
+                            seg.translated = translations[idx].strip()
+                        else:
+                            seg.translated = seg.text
+                        translated_segments.append(seg)
+                except Exception as e:
+                    print(f"Sentence translation failed: {e}")
+                    for seg in group:
+                        seg.translated = seg.text
+                        translated_segments.append(seg)
         
         if progress_callback:
             progress_callback(len(group))
     
     return translated_segments
+
+
+def _translate_with_word_alignment(
+    group: List[Segment],
+    all_words: List,  # List[Word]
+    source_lang: str,
+    target_lang: str,
+    max_chars: int,
+    config: Dict[str, Any]
+) -> List[Segment]:
+    """
+    Translate a sentence group using word-level alignment.
+    
+    LLM decides how to split the translation and indicates which word position
+    each segment should end at. We then create segments with precise timestamps.
+    """
+    from .transcribe import Segment, Word
+    
+    # Build words with positions string
+    words_with_positions = " ".join(
+        f"[{i}]{w.text}" for i, w in enumerate(all_words)
+    )
+    
+    # Calculate reasonable segment count range
+    total_words = len(all_words)
+    min_segments = 1
+    max_segments = max(1, total_words // 3)  # Roughly 3+ words per segment
+    
+    prompt = WORD_ALIGNED_TRANSLATION_PROMPT.format(
+        source_lang=_get_lang_name(source_lang),
+        target_lang=_get_lang_name(target_lang),
+        words_with_positions=words_with_positions,
+        min_segments=min_segments,
+        max_segments=max_segments,
+        max_chars=max_chars
+    )
+    
+    # Call LLM
+    result = _translate_sentence_group(prompt, max_segments, config)
+    
+    # Parse result: "translated text | end: N"
+    new_segments = []
+    prev_end_idx = -1
+    
+    for line in result:
+        line = line.strip()
+        if not line:
+            continue
+        
+        # Parse "text | end: N" format
+        if "|" in line and "end:" in line.lower():
+            parts = line.rsplit("|", 1)
+            text = parts[0].strip()
+            end_part = parts[1].lower()
+            
+            # Extract end position
+            import re
+            match = re.search(r'end:\s*(\d+)', end_part)
+            if match:
+                end_idx = int(match.group(1))
+                
+                # Clamp to valid range
+                end_idx = min(end_idx, len(all_words) - 1)
+                end_idx = max(end_idx, prev_end_idx + 1)
+                
+                # Calculate timestamps from word boundaries
+                start_idx = prev_end_idx + 1
+                start_time = all_words[start_idx].start if start_idx < len(all_words) else all_words[-1].end
+                end_time = all_words[end_idx].end
+                
+                new_segments.append(Segment(
+                    start=start_time,
+                    end=end_time,
+                    text=" ".join(w.text for w in all_words[start_idx:end_idx+1]),
+                    translated=text
+                ))
+                
+                prev_end_idx = end_idx
+        else:
+            # Fallback: just use the text without timing info
+            # This shouldn't happen if LLM follows the format
+            pass
+    
+    # If no valid segments were parsed, return original segments with translation
+    if not new_segments:
+        merged_text = " ".join(seg.text for seg in group)
+        merged_translation = " ".join(result) if result else merged_text
+        
+        # Just return one segment with all the text
+        return [Segment(
+            start=group[0].start,
+            end=group[-1].end,
+            text=merged_text,
+            translated=merged_translation
+        )]
+    
+    return new_segments
 
 
 def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str, Any]) -> List[str]:

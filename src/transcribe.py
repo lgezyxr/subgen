@@ -2,8 +2,16 @@
 
 import re
 from pathlib import Path
-from typing import Dict, Any, List
-from dataclasses import dataclass
+from typing import Dict, Any, List, Optional
+from dataclasses import dataclass, field
+
+
+@dataclass
+class Word:
+    """Word with timestamp"""
+    text: str
+    start: float
+    end: float
 
 
 @dataclass
@@ -13,6 +21,7 @@ class Segment:
     end: float        # End time (seconds)
     text: str         # Original text
     translated: str = ""  # Translated text
+    words: List[Word] = field(default_factory=list)  # Word-level timestamps
 
 
 def merge_segments_by_sentence(segments: List[Segment], max_duration: float = 8.0) -> List[Segment]:
@@ -146,10 +155,21 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
 
     segments = []
     for seg in segments_iter:
+        # Extract word-level timestamps
+        words = []
+        if seg.words:
+            for w in seg.words:
+                words.append(Word(
+                    text=w.word.strip(),
+                    start=w.start,
+                    end=w.end
+                ))
+        
         segments.append(Segment(
             start=seg.start,
             end=seg.end,
-            text=seg.text.strip()
+            text=seg.text.strip(),
+            words=words
         ))
 
     return segments
@@ -197,10 +217,20 @@ def _transcribe_mlx(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
 
     segments = []
     for seg in result.get("segments", []):
+        # Extract word-level timestamps
+        words = []
+        for w in seg.get("words", []):
+            words.append(Word(
+                text=w.get("word", "").strip(),
+                start=w.get("start", 0),
+                end=w.get("end", 0)
+            ))
+        
         segments.append(Segment(
             start=seg["start"],
             end=seg["end"],
-            text=seg["text"].strip()
+            text=seg["text"].strip(),
+            words=words
         ))
 
     return segments
