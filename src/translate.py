@@ -45,10 +45,14 @@ def translate_segments(
     if not segments:
         return []
     
-    provider = config['translation']['provider']
-    target_lang = config['output']['target_language']
-    max_chars = config['output']['max_chars_per_line']
-    batch_size = config['advanced']['translation_batch_size']
+    provider = config.get('translation', {}).get('provider', 'openai')
+    target_lang = config.get('output', {}).get('target_language', 'zh')
+    max_chars = config.get('output', {}).get('max_chars_per_line', 40)
+    batch_size = config.get('advanced', {}).get('translation_batch_size', 10)
+    
+    # 验证 batch_size
+    if not batch_size or batch_size < 1:
+        batch_size = 10  # 默认值
     
     # 获取翻译函数
     if provider == 'openai':

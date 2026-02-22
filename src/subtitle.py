@@ -1,7 +1,7 @@
 """字幕生成模块"""
 
 import subprocess
-import re
+import shlex
 from pathlib import Path
 from typing import Dict, Any, List
 from .transcribe import Segment
@@ -23,8 +23,8 @@ def generate_subtitle(
     if not segments:
         raise ValueError("没有字幕内容可生成")
     
-    format_type = config['output']['format']
-    bilingual = config['output']['bilingual']
+    format_type = config.get('output', {}).get('format', 'srt')
+    bilingual = config.get('output', {}).get('bilingual', False)
     
     if format_type == 'srt':
         _generate_srt(segments, output_path, bilingual)
@@ -40,10 +40,11 @@ def _format_time_srt(seconds: float) -> str:
     """格式化时间为 SRT 格式 (HH:MM:SS,mmm)"""
     if seconds < 0:
         seconds = 0
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = int(seconds % 60)
-    millis = int((seconds - int(seconds)) * 1000)
+    # 使用 round 避免浮点误差
+    total_ms = round(seconds * 1000)
+    hours, remainder = divmod(total_ms, 3600000)
+    minutes, remainder = divmod(remainder, 60000)
+    secs, millis = divmod(remainder, 1000)
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 
 
@@ -51,10 +52,10 @@ def _format_time_vtt(seconds: float) -> str:
     """格式化时间为 VTT 格式 (HH:MM:SS.mmm)"""
     if seconds < 0:
         seconds = 0
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = int(seconds % 60)
-    millis = int((seconds - int(seconds)) * 1000)
+    total_ms = round(seconds * 1000)
+    hours, remainder = divmod(total_ms, 3600000)
+    minutes, remainder = divmod(remainder, 60000)
+    secs, millis = divmod(remainder, 1000)
     return f"{hours:02d}:{minutes:02d}:{secs:02d}.{millis:03d}"
 
 
@@ -62,34 +63,38 @@ def _format_time_ass(seconds: float) -> str:
     """格式化时间为 ASS 格式 (H:MM:SS.cc)"""
     if seconds < 0:
         seconds = 0
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = int(seconds % 60)
-    centis = int((seconds - int(seconds)) * 100)
+    total_cs = round(seconds * 100)
+    hours, remainder = divmod(total_cs, 360000)
+    minutes, remainder = divmod(remainder, 6000)
+    secs, centis = divmod(remainder, 100)
     return f"{hours}:{minutes:02d}:{secs:02d}.{centis:02d}"
 
 
 def _escape_ass_text(text: str) -> str:
     """转义 ASS 格式中的特殊字符"""
-    # ASS 使用 \n 表示换行，需要转义反斜杠
+    # 先处理反斜杠
     text = text.replace('\\', '\\\\')
     # 花括号用于样式标签，需要转义
     text = text.replace('{', '\\{')
     text = text.replace('}', '\\}')
+    # ASS 中换行使用 \N
+    text = text.replace('\n', '\\N')
     return text
 
 
 def _generate_srt(segments: List[Segment], output_path: Path, bilingual: bool) -> None:
     """生成 SRT 格式字幕"""
     lines = []
+    subtitle_index = 0  # 独立计数器，确保编号连续
     
-    for i, seg in enumerate(segments, 1):
+    for seg in segments:
         # 跳过空字幕
         content = seg.translated or seg.text
         if not content.strip():
             continue
         
-        lines.append(str(i))
+        subtitle_index += 1
+        lines.append(str(subtitle_index))
         lines.append(f"{_format_time_srt(seg.start)} --> {_format_time_srt(seg.end)}")
         
         if bilingual and seg.text and seg.translated:
@@ -176,6 +181,19 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     output_path.write_text("\n".join(lines), encoding='utf-8')
 
 
+def _escape_ffmpeg_filter_path(path: str) -> str:
+    """
+    转义 FFmpeg filter 中的路径
+    FFmpeg filter 需要转义: \ ' : [ ]
+    """
+    # 先转义反斜杠
+    path = path.replace('\\', '/')
+    # 转义 FFmpeg filter 特殊字符
+    for char in ["'", ":", "[", "]"]:
+        path = path.replace(char, '\\' + char)
+    return path
+
+
 def embed_subtitle(
     video_path: Path,
     subtitle_path: Path,
@@ -191,11 +209,7 @@ def embed_subtitle(
         output_path: 输出视频路径
         config: 配置字典
     """
-    # FFmpeg subtitles filter 需要转义特殊字符
-    # 冒号、反斜杠、单引号需要转义
-    subtitle_path_str = str(subtitle_path.absolute())
-    # 转义 Windows 路径中的冒号和反斜杠
-    subtitle_path_escaped = subtitle_path_str.replace('\\', '/').replace(':', '\\:')
+    subtitle_path_escaped = _escape_ffmpeg_filter_path(str(subtitle_path.absolute()))
     
     cmd = [
         'ffmpeg',

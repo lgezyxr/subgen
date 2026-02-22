@@ -150,10 +150,17 @@ def _transcribe_groq(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
             model="whisper-large-v3",
             file=f,
             response_format="verbose_json",
+            timestamp_granularities=["segment"],  # 确保返回 segments
         )
     
     segments = []
-    # Groq SDK 返回格式与 OpenAI 类似
+    # 检查 response 是否有 segments 属性
+    if not hasattr(response, 'segments') or not response.segments:
+        # 回退：如果没有 segments，用整个文本作为一个片段
+        if hasattr(response, 'text') and response.text:
+            return [Segment(start=0.0, end=0.0, text=response.text.strip())]
+        return []
+    
     for seg in response.segments:
         segments.append(Segment(
             start=seg.start,

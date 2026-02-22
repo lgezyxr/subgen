@@ -11,6 +11,11 @@ def check_ffmpeg() -> bool:
     return shutil.which('ffmpeg') is not None
 
 
+def check_ffprobe() -> bool:
+    """检查 FFprobe 是否可用"""
+    return shutil.which('ffprobe') is not None
+
+
 def extract_audio(video_path: Path, config: Dict[str, Any]) -> Path:
     """
     从视频文件中提取音频
@@ -34,7 +39,7 @@ def extract_audio(video_path: Path, config: Dict[str, Any]) -> Path:
     if not video_path.exists():
         raise FileNotFoundError(f"视频文件不存在: {video_path}")
     
-    temp_dir = Path(config['advanced']['temp_dir'])
+    temp_dir = Path(config.get('advanced', {}).get('temp_dir', '/tmp/subgen'))
     temp_dir.mkdir(parents=True, exist_ok=True)
     
     audio_path = temp_dir / f"{video_path.stem}_audio.wav"
@@ -73,6 +78,12 @@ def extract_audio(video_path: Path, config: Dict[str, Any]) -> Path:
 
 def get_audio_duration(audio_path: Path) -> float:
     """获取音频时长（秒）"""
+    if not check_ffprobe():
+        raise RuntimeError(
+            "FFprobe 未安装或不在 PATH 中。\n"
+            "FFprobe 通常随 FFmpeg 一起安装。"
+        )
+    
     if not audio_path.exists():
         raise FileNotFoundError(f"音频文件不存在: {audio_path}")
     
@@ -90,18 +101,21 @@ def get_audio_duration(audio_path: Path) -> float:
         raise RuntimeError(f"无法获取音频时长: {result.stderr}")
     
     duration_str = result.stdout.strip()
-    if not duration_str:
-        raise RuntimeError("无法解析音频时长")
+    if not duration_str or duration_str == 'N/A':
+        raise RuntimeError("无法解析音频时长：文件可能已损坏")
     
-    return float(duration_str)
+    try:
+        return float(duration_str)
+    except ValueError:
+        raise RuntimeError(f"无法解析音频时长: '{duration_str}'")
 
 
 def cleanup_temp_files(config: Dict[str, Any]) -> None:
     """清理临时文件"""
-    if config['advanced'].get('keep_temp_files', False):
+    if config.get('advanced', {}).get('keep_temp_files', False):
         return
     
-    temp_dir = Path(config['advanced']['temp_dir'])
+    temp_dir = Path(config.get('advanced', {}).get('temp_dir', '/tmp/subgen'))
     if temp_dir.exists():
         for f in temp_dir.glob('*_audio.wav'):
             try:
