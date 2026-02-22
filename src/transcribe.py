@@ -101,8 +101,8 @@ def transcribe_audio(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
     else:
         raise ValueError(f"Unsupported Whisper provider: {provider}")
 
-    # Post-process: merge segments by sentence boundaries
-    merge_sentences = config.get('advanced', {}).get('merge_sentences', True)
+    # Post-process: merge segments by sentence boundaries (disabled by default)
+    merge_sentences = config.get('advanced', {}).get('merge_sentences', False)
     max_segment_duration = config.get('advanced', {}).get('max_segment_duration', 8.0)
 
     if merge_sentences:
