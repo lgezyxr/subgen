@@ -485,9 +485,10 @@ def _translate_copilot(
         headers={
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
-            "Editor-Version": "subgen/0.1.0",
-            "Editor-Plugin-Version": "subgen/0.1.0",
-            "Copilot-Integration-Id": "subgen",
+            "Editor-Version": "vscode/1.85.0",
+            "Editor-Plugin-Version": "copilot-chat/0.12.0",
+            "Openai-Organization": "github-copilot",
+            "Openai-Intent": "conversation-panel",
         },
         json={
             "model": "gpt-4o",
@@ -496,12 +497,23 @@ def _translate_copilot(
                 {"role": "user", "content": user_prompt}
             ],
             "temperature": 0.3,
+            "n": 1,
+            "stream": False,
         },
         timeout=60
     )
 
     if response.status_code == 401:
         raise ValueError("Copilot token expired. Please run: subgen auth login copilot")
+
+    if response.status_code == 400:
+        # Log detailed error for debugging
+        try:
+            err = response.json()
+            err_msg = err.get("error", {}).get("message", response.text[:500])
+        except Exception:
+            err_msg = response.text[:500]
+        raise ValueError(f"Copilot API error (400): {err_msg}")
 
     response.raise_for_status()
 
