@@ -12,9 +12,30 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeEl
 console = Console()
 
 
-@click.group(invoke_without_command=True)
-@click.pass_context
-@click.argument('input_path', type=click.Path(exists=True), required=False)
+# Create CLI group
+@click.group()
+def cli():
+    """
+    SubGen - AI-powered subtitle generation tool
+
+    \b
+    COMMANDS:
+        subgen run <video>    Generate subtitles (main command)
+        subgen init           Run setup wizard
+        subgen auth login     Login to OAuth providers
+        subgen auth logout    Logout from providers
+        subgen auth status    Show login status
+
+    \b
+    QUICK START:
+        subgen run movie.mp4 --from en --to zh
+        subgen run movie.mp4 --llm-provider copilot
+    """
+    pass
+
+
+@cli.command()
+@click.argument('input_path', type=click.Path(exists=True))
 @click.option('--output', '-o', type=click.Path(), help='Output subtitle file path')
 @click.option('--from', '-f', 'source_lang', default=None, help='Source language (e.g., en, es, ja). Auto-detect if not specified')
 @click.option('--to', '-t', 'target_lang', default=None, help='Target translation language (e.g., zh, ja, ko)')
@@ -24,43 +45,24 @@ console = Console()
 @click.option('--embed', is_flag=True, help='Burn subtitles into video')
 @click.option('--config', '-c', type=click.Path(), default='config.yaml', help='Config file path')
 @click.option('--verbose', '-v', is_flag=True, help='Show verbose logs')
-def cli(ctx, input_path, output, source_lang, target_lang, bilingual, whisper_provider, llm_provider, embed, config, verbose):
+def run(input_path, output, source_lang, target_lang, bilingual, whisper_provider, llm_provider, embed, config, verbose):
     """
-    SubGen - AI-powered subtitle generation tool
-
-    Extract audio from video, transcribe with AI, translate, and generate subtitles.
-
-    \b
-    COMMANDS:
-        subgen init           Run setup wizard
-        subgen auth login     Login to OAuth providers (e.g., copilot)
-        subgen auth logout    Logout from providers
-        subgen auth status    Show login status
+    Generate subtitles for a video file.
 
     \b
     EXAMPLES:
         # Basic usage (auto-detect source, translate to Chinese)
-        python subgen.py movie.mp4
+        subgen run movie.mp4
 
         # Specify source and target language
-        python subgen.py movie.mp4 --from en --to zh
+        subgen run movie.mp4 --from en --to zh
 
         # Use GitHub Copilot for translation
-        python subgen.py movie.mp4 --from en --to zh --llm-provider copilot
+        subgen run movie.mp4 --from en --to zh --llm-provider copilot
 
         # Generate bilingual subtitles
-        python subgen.py movie.mp4 --from en --to zh --bilingual
+        subgen run movie.mp4 --from en --to zh --bilingual
     """
-    # If a subcommand is invoked, skip main processing
-    if ctx.invoked_subcommand is not None:
-        return
-
-    # If no input file provided, show help
-    if not input_path:
-        click.echo(ctx.get_help())
-        return
-
-    # Run main subtitle generation
     run_subtitle_generation(
         input_path, output, source_lang, target_lang,
         bilingual, whisper_provider, llm_provider, embed, config, verbose
@@ -291,10 +293,7 @@ def auth_login(provider):
         console.print("\n[bold]GitHub Copilot Login[/bold]\n")
 
         try:
-            def on_waiting():
-                pass  # Silent waiting
-
-            copilot_login(on_waiting=on_waiting)
+            copilot_login()
             console.print("\n[green]✅ Successfully logged in to GitHub Copilot![/green]")
             console.print("You can now use: --llm-provider copilot\n")
 
@@ -333,5 +332,30 @@ def auth_status():
     console.print()
 
 
-if __name__ == '__main__':
+# Allow direct video file as argument (shortcut for 'run')
+@cli.command(name='process', hidden=True)
+@click.argument('input_path', type=click.Path(exists=True))
+@click.pass_context
+def process_shortcut(ctx, input_path):
+    """Hidden command for backward compatibility."""
+    ctx.invoke(run, input_path=input_path)
+
+
+def main():
+    """Entry point that handles both 'subgen video.mp4' and 'subgen run video.mp4'."""
+    import sys
+
+    # If first arg looks like a file (not a command), insert 'run'
+    if len(sys.argv) > 1:
+        first_arg = sys.argv[1]
+        commands = ['run', 'init', 'auth', '--help', '-h', '--version']
+        if first_arg not in commands and not first_arg.startswith('-'):
+            # Check if it's a file path
+            if Path(first_arg).exists() or '.' in first_arg:
+                sys.argv.insert(1, 'run')
+
     cli()
+
+
+if __name__ == '__main__':
+    main()
