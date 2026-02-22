@@ -54,3 +54,5 @@ whisper:
         # 默认值应该保留
         assert 'output' in cfg
         assert cfg['output']['format'] == 'srt'
+        # whisper 的其他默认值也应该保留
+        assert cfg['whisper']['local_model'] == 'large-v3'

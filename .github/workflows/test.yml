@@ -40,8 +40,9 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install ruff
-        run: pip install ruff
+      - name: Install dependencies
+        run: |
+          pip install ruff pyyaml
 
       - name: Run linter
-        run: ruff check src/ --ignore E501
+        run: ruff check src/ tests/ --ignore E501

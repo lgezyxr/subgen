@@ -5,6 +5,33 @@ from pathlib import Path
 from typing import Dict, Any
 
 
+# 默认配置
+DEFAULT_CONFIG: Dict[str, Any] = {
+    'whisper': {
+        'provider': 'local',
+        'local_model': 'large-v3',
+        'device': 'cuda',
+    },
+    'translation': {
+        'provider': 'openai',
+        'model': 'gpt-4o-mini',
+    },
+    'output': {
+        'format': 'srt',
+        'target_language': 'zh',
+        'bilingual': False,
+        'max_chars_per_line': 42,
+        'embed_in_video': False,
+    },
+    'advanced': {
+        'translation_batch_size': 20,
+        'translation_context_size': 5,
+        'temp_dir': './temp',
+        'keep_temp_files': False,
+    },
+}
+
+
 def load_config(config_path: str = "config.yaml") -> Dict[str, Any]:
     """加载配置文件"""
     path = Path(config_path)
@@ -13,32 +40,18 @@ def load_config(config_path: str = "config.yaml") -> Dict[str, Any]:
         raise FileNotFoundError(f"配置文件不存在: {config_path}")
     
     with open(path, 'r', encoding='utf-8') as f:
-        config = yaml.safe_load(f)
+        config = yaml.safe_load(f) or {}
     
-    # 设置默认值
-    config.setdefault('whisper', {})
-    config['whisper'].setdefault('provider', 'openai')
-    config['whisper'].setdefault('local_model', 'large-v3')
-    config['whisper'].setdefault('device', 'cuda')
+    # 与默认配置合并
+    import copy
+    result = copy.deepcopy(DEFAULT_CONFIG)
+    for key, value in config.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key].update(value)
+        else:
+            result[key] = value
     
-    config.setdefault('translation', {})
-    config['translation'].setdefault('provider', 'openai')
-    config['translation'].setdefault('model', 'gpt-4o-mini')
-    
-    config.setdefault('output', {})
-    config['output'].setdefault('format', 'srt')
-    config['output'].setdefault('target_language', 'zh')
-    config['output'].setdefault('bilingual', False)
-    config['output'].setdefault('max_chars_per_line', 42)
-    config['output'].setdefault('embed_in_video', False)
-    
-    config.setdefault('advanced', {})
-    config['advanced'].setdefault('translation_batch_size', 20)
-    config['advanced'].setdefault('translation_context_size', 5)
-    config['advanced'].setdefault('temp_dir', './temp')
-    config['advanced'].setdefault('keep_temp_files', False)
-    
-    return config
+    return result
 
 
 def get_api_key(config: Dict[str, Any], provider: str, key_name: str) -> str:
