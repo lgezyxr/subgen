@@ -445,6 +445,7 @@ def _translate_ollama(
 def _get_lang_name(lang_code: str) -> str:
     """语言代码转语言名称"""
     lang_map = {
+        'auto': '原语言',  # 自动检测时的显示
         'zh': '中文',
         'zh-TW': '繁體中文',
         'en': 'English',
@@ -458,5 +459,11 @@ def _get_lang_name(lang_code: str) -> str:
         'ar': 'العربية',
         'th': 'ภาษาไทย',
         'vi': 'Tiếng Việt',
+        'it': 'Italiano',
+        'nl': 'Nederlands',
+        'pl': 'Polski',
+        'tr': 'Türkçe',
+        'id': 'Bahasa Indonesia',
+        'hi': 'हिन्दी',
     }
     return lang_map.get(lang_code, lang_code)
