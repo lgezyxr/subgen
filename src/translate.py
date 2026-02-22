@@ -1,80 +1,79 @@
-"""翻译模块"""
+"""Translation module"""
 
 from pathlib import Path
 from typing import Dict, Any, List, Callable, Optional
 from .transcribe import Segment
 
 
-# 基础翻译系统提示词
-TRANSLATION_SYSTEM_PROMPT_BASE = """你是一个专业的字幕翻译员。你的任务是将{source_lang}字幕翻译成{target_lang}。
+# Base translation system prompt
+TRANSLATION_SYSTEM_PROMPT_BASE = """You are a professional subtitle translator. Your task is to translate {source_lang} subtitles into {target_lang}.
 
-基本要求：
-1. 保持原意，但表达要自然流畅
-2. 字幕要简洁，适合屏幕显示（每行不超过{max_chars}个字符）
-3. 保持前后文连贯性
-4. 人名、地名等专有名词保持一致
-5. 口语化表达，避免书面语
+Requirements:
+1. Preserve the original meaning while ensuring natural, fluent expression
+2. Keep subtitles concise for screen display (max {max_chars} characters per line)
+3. Maintain consistency across context
+4. Keep proper nouns (names, places) consistent throughout
+5. Use colloquial expressions, avoid overly formal language
 
-输出格式：
-- 只输出翻译结果，每行对应一条字幕
-- 不要添加序号或额外说明
-- 输入多少行，输出多少行（严格一一对应）
+Output format:
+- Output only the translations, one line per subtitle
+- Do not add numbering or extra explanations
+- Output exactly the same number of lines as input (strict 1:1 correspondence)
 """
 
-# 带规则的系统提示词
-TRANSLATION_SYSTEM_PROMPT_WITH_RULES = """你是一个专业的字幕翻译员。你的任务是将{source_lang}字幕翻译成{target_lang}。
+# System prompt with rules
+TRANSLATION_SYSTEM_PROMPT_WITH_RULES = """You are a professional subtitle translator. Your task is to translate {source_lang} subtitles into {target_lang}.
 
-基本要求：
-1. 保持原意，但表达要自然流畅
-2. 字幕要简洁，适合屏幕显示（每行不超过{max_chars}个字符）
-3. 保持前后文连贯性
-4. 人名、地名等专有名词保持一致
-5. 口语化表达，避免书面语
+Requirements:
+1. Preserve the original meaning while ensuring natural, fluent expression
+2. Keep subtitles concise for screen display (max {max_chars} characters per line)
+3. Maintain consistency across context
+4. Keep proper nouns (names, places) consistent throughout
+5. Use colloquial expressions, avoid overly formal language
 
-{target_lang}翻译规则（必须严格遵守）：
+{target_lang} Translation Rules (MUST follow strictly):
 {rules}
 
-输出格式：
-- 只输出翻译结果，每行对应一条字幕
-- 不要添加序号或额外说明
-- 输入多少行，输出多少行（严格一一对应）
+Output format:
+- Output only the translations, one line per subtitle
+- Do not add numbering or extra explanations
+- Output exactly the same number of lines as input (strict 1:1 correspondence)
 """
 
-TRANSLATION_USER_PROMPT = """请翻译以下 {count} 条字幕（每行一条，输出也必须是 {count} 行）：
+TRANSLATION_USER_PROMPT = """Please translate the following {count} subtitles (one per line, output must also be {count} lines):
 
 {subtitles}
 """
 
 
 def _get_rules_dir() -> Path:
-    """获取规则文件目录"""
-    # 优先查找项目根目录下的 rules/
-    # 支持多种运行方式
+    """Get translation rules directory"""
+    # Search for rules/ directory in multiple locations
     possible_paths = [
-        Path(__file__).parent.parent / 'rules',  # src/ 的上一级
-        Path.cwd() / 'rules',  # 当前工作目录
-        Path.home() / '.subgen' / 'rules',  # 用户目录
+        Path(__file__).parent.parent / 'rules',  # Parent of src/
+        Path.cwd() / 'rules',  # Current working directory
+        Path.home() / '.subgen' / 'rules',  # User home directory
     ]
     for path in possible_paths:
         if path.exists():
             return path
-    return possible_paths[0]  # 返回默认路径（即使不存在）
+    return possible_paths[0]  # Return default path even if it doesn't exist
 
 
 def load_translation_rules(lang_code: str) -> Optional[str]:
     """
-    加载指定语言的翻译规则
+    Load translation rules for specified language
 
     Args:
-        lang_code: 语言代码 (如 'zh', 'ja', 'en')
+        lang_code: Language code (e.g., 'zh', 'ja', 'en')
 
     Returns:
-        规则内容字符串，如果没有找到则返回 None
+        Rules content string, or None if not found
     """
     rules_dir = _get_rules_dir()
 
-    # 尝试加载顺序：精确匹配 -> 语言族 -> 默认
-    # 例如 zh-TW -> zh-TW.md -> zh.md -> default.md
+    # Try loading order: exact match -> language family -> default
+    # e.g., zh-TW -> zh-TW.md -> zh.md -> default.md
     candidates = [
         rules_dir / f'{lang_code}.md',
         rules_dir / f'{lang_code.split("-")[0]}.md',  # zh-TW -> zh
@@ -85,16 +84,16 @@ def load_translation_rules(lang_code: str) -> Optional[str]:
         if rule_file.exists():
             try:
                 content = rule_file.read_text(encoding='utf-8')
-                # 移除 Markdown 标题，只保留内容
+                # Remove Markdown title, keep only content
                 lines = []
                 for line in content.split('\n'):
-                    # 跳过一级标题
+                    # Skip level-1 headings
                     if line.startswith('# '):
                         continue
                     lines.append(line)
                 return '\n'.join(lines).strip()
             except Exception as e:
-                print(f"警告：读取规则文件失败 {rule_file}: {e}")
+                print(f"Warning: Failed to read rules file {rule_file}: {e}")
                 continue
 
     return None
@@ -102,16 +101,16 @@ def load_translation_rules(lang_code: str) -> Optional[str]:
 
 def _build_system_prompt(source_lang: str, target_lang: str, max_chars: int, lang_code: str) -> str:
     """
-    构建系统提示词
+    Build system prompt for translation
 
     Args:
-        source_lang: 源语言名称
-        target_lang: 目标语言名称
-        max_chars: 每行最大字符数
-        lang_code: 目标语言代码
+        source_lang: Source language name
+        target_lang: Target language name
+        max_chars: Maximum characters per line
+        lang_code: Target language code
 
     Returns:
-        完整的系统提示词
+        Complete system prompt
     """
     rules = load_translation_rules(lang_code)
 
@@ -136,15 +135,15 @@ def translate_segments(
     progress_callback: Optional[Callable[[int], None]] = None
 ) -> List[Segment]:
     """
-    翻译字幕片段
+    Translate subtitle segments
 
     Args:
-        segments: 字幕片段列表
-        config: 配置字典
-        progress_callback: 进度回调函数
+        segments: List of subtitle segments
+        config: Configuration dictionary
+        progress_callback: Progress callback function
 
     Returns:
-        翻译后的字幕片段列表
+        List of translated subtitle segments
     """
     if not segments:
         return []
@@ -155,11 +154,11 @@ def translate_segments(
     max_chars = config.get('output', {}).get('max_chars_per_line', 40)
     batch_size = config.get('advanced', {}).get('translation_batch_size', 10)
 
-    # 验证 batch_size
+    # Validate batch_size
     if not batch_size or batch_size < 1:
-        batch_size = 10  # 默认值
+        batch_size = 10  # Default value
 
-    # 获取翻译函数
+    # Get translation function
     if provider == 'openai':
         translate_fn = _translate_openai
     elif provider == 'claude':
@@ -169,15 +168,15 @@ def translate_segments(
     elif provider == 'ollama':
         translate_fn = _translate_ollama
     else:
-        raise ValueError(f"不支持的翻译提供商: {provider}")
+        raise ValueError(f"Unsupported translation provider: {provider}")
 
-    # 分批翻译
+    # Translate in batches
     translated_segments = []
     for i in range(0, len(segments), batch_size):
         batch = segments[i:i + batch_size]
         batch_texts = [seg.text for seg in batch]
 
-        # 跳过全空的批次
+        # Skip empty batches
         if all(not text.strip() for text in batch_texts):
             for seg in batch:
                 seg.translated = ""
@@ -186,7 +185,7 @@ def translate_segments(
                 progress_callback(len(batch))
             continue
 
-        # 调用翻译
+        # Call translation
         try:
             translations = translate_fn(
                 batch_texts,
@@ -196,22 +195,22 @@ def translate_segments(
                 config
             )
         except Exception as e:
-            # 翻译失败时，保留原文
-            print(f"翻译批次失败: {e}")
+            # On translation failure, keep original text
+            print(f"Translation batch failed: {e}")
             translations = batch_texts
 
-        # 确保 translations 长度与 batch 相等
+        # Ensure translations length matches batch
         while len(translations) < len(batch):
             translations.append("")
         translations = translations[:len(batch)]
 
-        # 更新字幕 (使用索引遍历确保不丢失)
+        # Update subtitles (use index iteration to ensure no loss)
         for idx, seg in enumerate(batch):
             trans = translations[idx] if idx < len(translations) else ""
             seg.translated = trans.strip() if trans else seg.text
             translated_segments.append(seg)
 
-        # 更新进度
+        # Update progress
         if progress_callback:
             progress_callback(len(batch))
 
@@ -220,39 +219,39 @@ def translate_segments(
 
 def _parse_translations(result_text: str, expected_count: int) -> List[str]:
     """
-    解析 LLM 返回的翻译结果
+    Parse LLM translation results
 
-    处理各种边界情况：
-    - 行数不匹配
-    - 空行
-    - 额外的格式
+    Handle various edge cases:
+    - Line count mismatch
+    - Empty lines
+    - Extra formatting
     """
-    # 按行分割，保留所有行（不要 strip 整体，以免丢失首尾空行）
+    # Split by lines, keep all lines (don't strip overall to avoid losing leading/trailing empty lines)
     lines = result_text.split('\n')
 
-    # 移除可能的序号前缀 (1. 2. 等)
+    # Remove possible numbering prefixes (1. 2. etc.)
     translations = []
     for line in lines:
         line_stripped = line.strip()
-        # 移除常见的序号格式
+        # Remove common numbering formats
         if line_stripped and line_stripped[0].isdigit():
-            # 检查是否是 "1. xxx" 或 "1) xxx" 格式
+            # Check for "1. xxx" or "1) xxx" format
             for sep in ['. ', ') ', ': ', '、']:
                 if sep in line_stripped[:5]:
                     line_stripped = line_stripped.split(sep, 1)[-1]
                     break
         translations.append(line_stripped)
 
-    # 过滤空行但保持位置对应
-    # 如果行数匹配，直接返回
+    # Filter empty lines but maintain position correspondence
+    # If line count matches, return directly
     if len(translations) == expected_count:
         return translations
 
-    # 如果行数少于预期，用空字符串填充
+    # If fewer lines than expected, pad with empty strings
     while len(translations) < expected_count:
         translations.append("")
 
-    # 如果行数多于预期，截断
+    # If more lines than expected, truncate
     return translations[:expected_count]
 
 
@@ -263,7 +262,7 @@ def _translate_openai(
     max_chars: int,
     config: Dict[str, Any]
 ) -> List[str]:
-    """使用 OpenAI API 翻译"""
+    """Translate using OpenAI API"""
     from openai import OpenAI
     import os
 
@@ -272,7 +271,7 @@ def _translate_openai(
     model = config['translation'].get('model', 'gpt-4o-mini')
 
     if not api_key:
-        raise ValueError("OpenAI API Key 未配置")
+        raise ValueError("OpenAI API Key not configured")
 
     client = OpenAI(api_key=api_key, base_url=base_url if base_url else None)
 
@@ -308,7 +307,7 @@ def _translate_claude(
     max_chars: int,
     config: Dict[str, Any]
 ) -> List[str]:
-    """使用 Claude API 翻译"""
+    """Translate using Claude API"""
     import anthropic
     import os
 
@@ -316,7 +315,7 @@ def _translate_claude(
     model = config['translation'].get('model', 'claude-3-haiku-20240307')
 
     if not api_key:
-        raise ValueError("Anthropic API Key 未配置")
+        raise ValueError("Anthropic API Key not configured")
 
     client = anthropic.Anthropic(api_key=api_key)
 
@@ -352,7 +351,7 @@ def _translate_deepseek(
     max_chars: int,
     config: Dict[str, Any]
 ) -> List[str]:
-    """使用 DeepSeek API 翻译（OpenAI 兼容接口）"""
+    """Translate using DeepSeek API (OpenAI-compatible)"""
     from openai import OpenAI
     import os
 
@@ -360,7 +359,7 @@ def _translate_deepseek(
     model = config['translation'].get('model', 'deepseek-chat')
 
     if not api_key:
-        raise ValueError("DeepSeek API Key 未配置")
+        raise ValueError("DeepSeek API Key not configured")
 
     client = OpenAI(
         api_key=api_key,
@@ -399,7 +398,7 @@ def _translate_ollama(
     max_chars: int,
     config: Dict[str, Any]
 ) -> List[str]:
-    """使用本地 Ollama 翻译"""
+    """Translate using local Ollama"""
     import httpx
 
     host = config['translation'].get('ollama_host', 'http://localhost:11434')
@@ -433,7 +432,7 @@ def _translate_ollama(
         response.raise_for_status()
     except httpx.ConnectError:
         raise ConnectionError(
-            f"无法连接到 Ollama ({host})。请确保 Ollama 正在运行:\n"
+            f"Cannot connect to Ollama ({host}). Please make sure Ollama is running:\n"
             "ollama serve"
         )
 
@@ -443,9 +442,9 @@ def _translate_ollama(
 
 
 def _get_lang_name(lang_code: str) -> str:
-    """语言代码转语言名称"""
+    """Convert language code to language name"""
     lang_map = {
-        'auto': '原语言',  # 自动检测时的显示
+        'auto': 'source language',  # Display for auto-detect
         'zh': '中文',
         'zh-TW': '繁體中文',
         'en': 'English',

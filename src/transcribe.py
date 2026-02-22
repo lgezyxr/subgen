@@ -1,4 +1,4 @@
-"""语音识别模块"""
+"""Speech recognition module"""
 
 from pathlib import Path
 from typing import Dict, Any, List
@@ -7,23 +7,23 @@ from dataclasses import dataclass
 
 @dataclass
 class Segment:
-    """字幕片段"""
-    start: float      # 开始时间（秒）
-    end: float        # 结束时间（秒）
-    text: str         # 原文文本
-    translated: str = ""  # 翻译文本
+    """Subtitle segment"""
+    start: float      # Start time (seconds)
+    end: float        # End time (seconds)
+    text: str         # Original text
+    translated: str = ""  # Translated text
 
 
 def transcribe_audio(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
     """
-    对音频进行语音识别
+    Transcribe audio using speech recognition
 
     Args:
-        audio_path: 音频文件路径
-        config: 配置字典
+        audio_path: Path to audio file
+        config: Configuration dictionary
 
     Returns:
-        字幕片段列表
+        List of subtitle segments
     """
     whisper_config = config.get('whisper', {})
     provider = whisper_config.get('provider', 'local')
@@ -35,16 +35,16 @@ def transcribe_audio(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
     elif provider == 'groq':
         return _transcribe_groq(audio_path, config)
     else:
-        raise ValueError(f"不支持的 Whisper 提供商: {provider}")
+        raise ValueError(f"Unsupported Whisper provider: {provider}")
 
 
 def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
-    """使用本地 faster-whisper 进行语音识别"""
+    """Transcribe using local faster-whisper"""
     try:
         from faster_whisper import WhisperModel
     except ImportError:
         raise ImportError(
-            "本地 Whisper 需要安装 faster-whisper:\n"
+            "Local Whisper requires faster-whisper:\n"
             "pip install faster-whisper"
         )
 
@@ -52,23 +52,23 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
     device = config['whisper'].get('device', 'cuda')
     source_lang = config['whisper'].get('source_language', None)
 
-    # 根据设备选择计算类型
+    # Select compute type based on device
     compute_type = "float16" if device == "cuda" else "int8"
 
-    # 加载模型
+    # Load model
     model = WhisperModel(model_name, device=device, compute_type=compute_type)
 
-    # 转录参数
+    # Transcription options
     transcribe_opts = {
         "word_timestamps": True,
-        "vad_filter": True,  # 使用 VAD 过滤静音
+        "vad_filter": True,  # Use VAD to filter silence
     }
 
-    # 如果指定了源语言，添加 language 参数
+    # Add language parameter if source language specified
     if source_lang and source_lang != 'auto':
         transcribe_opts["language"] = source_lang
 
-    # 转录
+    # Transcribe
     segments_iter, info = model.transcribe(str(audio_path), **transcribe_opts)
 
     segments = []
@@ -83,7 +83,7 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
 
 
 def _transcribe_openai(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
-    """使用 OpenAI Whisper API 进行语音识别"""
+    """Transcribe using OpenAI Whisper API"""
     from openai import OpenAI
     import os
 
@@ -92,28 +92,28 @@ def _transcribe_openai(audio_path: Path, config: Dict[str, Any]) -> List[Segment
         api_key = os.environ.get('OPENAI_API_KEY', '')
 
     if not api_key:
-        raise ValueError("OpenAI API Key 未配置")
+        raise ValueError("OpenAI API Key not configured")
 
     source_lang = config['whisper'].get('source_language', None)
 
     client = OpenAI(api_key=api_key)
 
-    # OpenAI Whisper API 有 25MB 文件大小限制
+    # OpenAI Whisper API has 25MB file size limit
     file_size = audio_path.stat().st_size
     if file_size > 25 * 1024 * 1024:
         raise ValueError(
-            f"音频文件 ({file_size / 1024 / 1024:.1f}MB) 超过 OpenAI 25MB 限制。"
-            "请使用本地 Whisper 或分割音频。"
+            f"Audio file ({file_size / 1024 / 1024:.1f}MB) exceeds OpenAI's 25MB limit. "
+            "Please use local Whisper or split the audio."
         )
 
-    # 构建 API 参数
+    # Build API parameters
     api_params = {
         "model": "whisper-1",
         "response_format": "verbose_json",
         "timestamp_granularities": ["segment"]
     }
 
-    # 如果指定了源语言，添加 language 参数
+    # Add language parameter if source language specified
     if source_lang and source_lang != 'auto':
         api_params["language"] = source_lang
 
@@ -122,7 +122,7 @@ def _transcribe_openai(audio_path: Path, config: Dict[str, Any]) -> List[Segment
         response = client.audio.transcriptions.create(**api_params)
 
     segments = []
-    # OpenAI SDK v1+ 返回的是对象属性，不是字典
+    # OpenAI SDK v1+ returns object attributes, not dict
     for seg in response.segments:
         segments.append(Segment(
             start=seg.start,
@@ -134,12 +134,12 @@ def _transcribe_openai(audio_path: Path, config: Dict[str, Any]) -> List[Segment
 
 
 def _transcribe_groq(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
-    """使用 Groq API 进行语音识别（超快）"""
+    """Transcribe using Groq API (super fast)"""
     try:
         from groq import Groq
     except ImportError:
         raise ImportError(
-            "Groq API 需要安装 groq:\n"
+            "Groq API requires groq package:\n"
             "pip install groq"
         )
 
@@ -150,28 +150,28 @@ def _transcribe_groq(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
         api_key = os.environ.get('GROQ_API_KEY', '')
 
     if not api_key:
-        raise ValueError("Groq API Key 未配置")
+        raise ValueError("Groq API Key not configured")
 
     source_lang = config['whisper'].get('source_language', None)
 
-    # Groq 也有文件大小限制 (25MB)
+    # Groq also has 25MB file size limit
     file_size = audio_path.stat().st_size
     if file_size > 25 * 1024 * 1024:
         raise ValueError(
-            f"音频文件 ({file_size / 1024 / 1024:.1f}MB) 超过 Groq 25MB 限制。"
-            "请使用本地 Whisper 或分割音频。"
+            f"Audio file ({file_size / 1024 / 1024:.1f}MB) exceeds Groq's 25MB limit. "
+            "Please use local Whisper or split the audio."
         )
 
     client = Groq(api_key=api_key)
 
-    # 构建 API 参数
+    # Build API parameters
     api_params = {
         "model": "whisper-large-v3",
         "response_format": "verbose_json",
         "timestamp_granularities": ["segment"],
     }
 
-    # 如果指定了源语言，添加 language 参数
+    # Add language parameter if source language specified
     if source_lang and source_lang != 'auto':
         api_params["language"] = source_lang
 
@@ -180,9 +180,9 @@ def _transcribe_groq(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
         response = client.audio.transcriptions.create(**api_params)
 
     segments = []
-    # 检查 response 是否有 segments 属性
+    # Check if response has segments attribute
     if not hasattr(response, 'segments') or not response.segments:
-        # 回退：如果没有 segments，用整个文本作为一个片段
+        # Fallback: if no segments, use entire text as one segment
         if hasattr(response, 'text') and response.text:
             return [Segment(start=0.0, end=0.0, text=response.text.strip())]
         return []

@@ -1,254 +1,257 @@
-# 🗺️ SubGen 开发路线图
+# 🗺️ SubGen Development Roadmap
 
-> 详细的开发计划，从 MVP 到完整产品
+> Detailed development plan from MVP to complete product
 
 ---
 
-## 📅 版本规划
+## 📅 Version Planning
 
-### v0.1.0 - MVP (当前)
-> 预计开发时间：已完成
+### v0.1.0 - MVP (Current)
+> Development time: Completed
 
-**目标**：跑通核心流程，验证技术可行性
+**Goal**: Run through core workflow, validate technical feasibility
 
-- [x] 项目结构搭建
-- [x] 配置文件系统
-- [x] 音频提取 (FFmpeg)
-- [x] 语音识别
-  - [x] 本地 faster-whisper
+- [x] Project structure setup
+- [x] Configuration file system
+- [x] Audio extraction (FFmpeg)
+- [x] Speech recognition
+  - [x] Local faster-whisper
   - [x] OpenAI Whisper API
   - [x] Groq API
-- [x] 翻译
+- [x] Translation
   - [x] OpenAI GPT
   - [x] Claude
   - [x] DeepSeek
-  - [x] Ollama (本地)
-- [x] 字幕生成
-  - [x] SRT 格式
-  - [x] ASS 格式
-  - [x] VTT 格式
-- [x] CLI 接口
-- [x] 基础文档
+  - [x] Ollama (local)
+- [x] Subtitle generation
+  - [x] SRT format
+  - [x] ASS format
+  - [x] VTT format
+- [x] CLI interface
+- [x] Language switching CLI (--from, --to)
+- [x] Multi-language translation rules
+- [x] Basic documentation
+- [x] Unit tests & CI
 
 ---
 
-### v0.2.0 - 稳定性 & 易用性
-> 预计开发时间：1-2 周
+### v0.2.0 - Stability & Usability
+> Estimated: 1-2 weeks
 
-**目标**：提升用户体验，处理边界情况
+**Goal**: Improve user experience, handle edge cases
 
-#### 功能增强
-- [ ] 配置向导 (`subgen init`)
-- [ ] API Key 验证和错误提示优化
-- [ ] 进度显示优化（百分比、预估时间）
-- [ ] 断点续传（大文件处理中断后可恢复）
-- [ ] 日志系统完善
+#### Feature Enhancements
+- [ ] Setup wizard (`subgen init`)
+- [ ] API key validation and better error messages
+- [ ] Progress display improvements (percentage, ETA)
+- [ ] Resume interrupted processing (for large files)
+- [ ] Comprehensive logging system
 
-#### 字幕质量
-- [ ] 字幕时间轴微调（避免说话前/后出现）
-- [ ] 长句自动断行
-- [ ] 标点符号规范化
+#### Subtitle Quality
+- [ ] Subtitle timing fine-tuning (avoid appearing before/after speech)
+- [ ] Automatic long sentence line breaks
+- [ ] Punctuation normalization
 
-#### 错误处理
-- [ ] 网络超时重试
-- [ ] 无效音频检测
-- [ ] API 配额不足提示
+#### Error Handling
+- [ ] Network timeout retries
+- [ ] Invalid audio detection
+- [ ] API quota exhausted warnings
 
-#### 测试
-- [ ] 单元测试覆盖
-- [ ] 集成测试
-- [ ] 不同视频格式测试 (mp4, mkv, avi, mov)
-
----
-
-### v0.3.0 - 翻译质量提升
-> 预计开发时间：2-3 周
-
-**目标**：专业级字幕翻译质量
-
-#### 上下文翻译
-- [ ] 滑动窗口上下文（翻译时提供前后文）
-- [ ] 全局角色/术语提取
-- [ ] 前后一致性检查
-
-#### 术语表系统
-- [ ] 用户自定义术语表 (`glossary.yaml`)
-- [ ] 人名、地名一致性
-- [ ] 专业领域术语
-- [ ] 术语自动提取建议
-
-#### 翻译风格
-- [ ] 多种翻译风格选择（正式/口语/字幕组风格）
-- [ ] 语气保留（疑问、感叹等）
-- [ ] 文化适配选项
-
-#### 质量保证
-- [ ] 翻译后长度检查
-- [ ] 明显错误检测（漏译、重复等）
-- [ ] 可选人工校对模式
+#### Testing
+- [ ] Unit test coverage
+- [ ] Integration tests
+- [ ] Different video format tests (mp4, mkv, avi, mov)
 
 ---
 
-### v0.4.0 - 批量处理 & 自动化
-> 预计开发时间：2 周
+### v0.3.0 - Translation Quality
+> Estimated: 2-3 weeks
 
-**目标**：支持批量任务和自动化工作流
+**Goal**: Professional-level subtitle translation quality
 
-#### 批量处理
-- [ ] 文件夹批量处理
-- [ ] 任务队列
-- [ ] 并行处理（多个视频同时处理）
-- [ ] 批量任务报告
+#### Context-Aware Translation
+- [ ] Sliding window context (provide surrounding text during translation)
+- [ ] Global character/terminology extraction
+- [ ] Consistency checking
 
-#### 自动化
-- [ ] 监控文件夹（新文件自动处理）
-- [ ] 命令行管道支持
-- [ ] 输出格式模板
+#### Glossary System
+- [ ] User-defined glossary (`glossary.yaml`)
+- [ ] Name and place consistency
+- [ ] Domain-specific terminology
+- [ ] Auto-extraction suggestions
 
-#### 性能优化
-- [ ] 音频分段并行识别
-- [ ] 翻译并发请求
-- [ ] 内存优化（大文件流式处理）
+#### Translation Style
+- [ ] Multiple style options (formal/casual/fansub style)
+- [ ] Tone preservation (questions, exclamations, etc.)
+- [ ] Cultural adaptation options
 
----
-
-### v0.5.0 - 说话人分离
-> 预计开发时间：3-4 周
-
-**目标**：支持多人对话场景
-
-#### 说话人识别
-- [ ] 集成 pyannote-audio
-- [ ] 说话人数量自动检测
-- [ ] 说话人标签 (Speaker A, Speaker B)
-
-#### 角色管理
-- [ ] 手动指定角色名
-- [ ] 角色声音特征保存
-- [ ] 跨视频角色复用
-
-#### 输出增强
-- [ ] 按角色分色显示 (ASS)
-- [ ] 角色标签前缀选项
+#### Quality Assurance
+- [ ] Post-translation length check
+- [ ] Obvious error detection (missing, duplicates, etc.)
+- [ ] Optional manual review mode
 
 ---
 
-### v0.6.0 - GUI 界面
-> 预计开发时间：4-6 周
+### v0.4.0 - Batch Processing & Automation
+> Estimated: 2 weeks
 
-**目标**：图形界面，降低使用门槛
+**Goal**: Support batch tasks and automated workflows
 
-#### 技术选型
-- [ ] 框架选择：Tauri (Rust + Web) 或 Electron
-- [ ] UI 设计
+#### Batch Processing
+- [ ] Folder batch processing
+- [ ] Task queue
+- [ ] Parallel processing (multiple videos simultaneously)
+- [ ] Batch task reports
 
-#### 核心功能
-- [ ] 拖拽上传视频
-- [ ] 配置界面（API Keys 管理）
-- [ ] 实时进度显示
-- [ ] 字幕预览
+#### Automation
+- [ ] Watch folder (auto-process new files)
+- [ ] Command-line pipe support
+- [ ] Output format templates
 
-#### 编辑功能
-- [ ] 时间轴编辑器
-- [ ] 逐条字幕修改
-- [ ] 快捷键支持
-
-#### 视频预览
-- [ ] 内嵌视频播放器
-- [ ] 字幕实时预览
-- [ ] 时间点跳转
+#### Performance Optimization
+- [ ] Parallel audio segment recognition
+- [ ] Concurrent translation requests
+- [ ] Memory optimization (streaming for large files)
 
 ---
 
-### v0.7.0 - 高级功能
-> 预计开发时间：4-6 周
+### v0.5.0 - Speaker Diarization
+> Estimated: 3-4 weeks
 
-**目标**：专业字幕组需要的高级功能
+**Goal**: Support multi-speaker dialogue scenarios
 
-#### 字幕样式
-- [ ] 可视化样式编辑器
-- [ ] 预设样式模板
-- [ ] 字体、颜色、位置自定义
-- [ ] 特效支持（渐变、描边等）
+#### Speaker Recognition
+- [ ] Integrate pyannote-audio
+- [ ] Automatic speaker count detection
+- [ ] Speaker labels (Speaker A, Speaker B)
 
-#### 音频处理
-- [ ] 背景音乐分离
-- [ ] 降噪处理
-- [ ] 音量标准化
+#### Character Management
+- [ ] Manual character name assignment
+- [ ] Save character voice profiles
+- [ ] Reuse characters across videos
 
-#### 特殊场景
-- [ ] 歌词识别模式
-- [ ] 多语言混合处理
-- [ ] 听力障碍字幕（音效描述）
+#### Output Enhancement
+- [ ] Color-coded by character (ASS)
+- [ ] Character label prefix option
 
 ---
 
-### v1.0.0 - 正式发布
-> 预计开发时间：总计 4-6 个月
+### v0.6.0 - GUI Interface
+> Estimated: 4-6 weeks
 
-**目标**：生产就绪的完整产品
+**Goal**: Graphical interface to lower the barrier to entry
 
-#### 发布准备
-- [ ] 完整文档
-- [ ] 安装包（Windows, macOS, Linux）
-- [ ] 自动更新机制
-- [ ] 用户反馈渠道
+#### Tech Stack
+- [ ] Framework selection: Tauri (Rust + Web) or Electron
+- [ ] UI design
 
-#### 商业功能（可选）
-- [ ] Pro 版本许可证系统
-- [ ] 内置 API 额度
-- [ ] 优先支持
+#### Core Features
+- [ ] Drag-and-drop video upload
+- [ ] Settings interface (API key management)
+- [ ] Real-time progress display
+- [ ] Subtitle preview
 
----
+#### Editing Features
+- [ ] Timeline editor
+- [ ] Per-subtitle modification
+- [ ] Keyboard shortcut support
 
-## 🏗️ 技术债务 & 优化
-
-### 代码质量
-- [ ] 类型注解完善
-- [ ] 文档字符串补充
-- [ ] 代码审查清单
-
-### 架构优化
-- [ ] 插件系统（方便添加新的提供商）
-- [ ] 配置系统重构
-- [ ] 异步 I/O 优化
-
-### 依赖管理
-- [ ] 可选依赖分组
-- [ ] 版本锁定
-- [ ] 安全更新检查
+#### Video Preview
+- [ ] Embedded video player
+- [ ] Live subtitle preview
+- [ ] Timestamp navigation
 
 ---
 
-## 📊 里程碑
+### v0.7.0 - Advanced Features
+> Estimated: 4-6 weeks
 
-| 版本 | 目标日期 | 关键功能 |
-|------|----------|----------|
-| v0.1.0 | ✅ 已完成 | MVP - 核心流程 |
-| v0.2.0 | +2 周 | 稳定性 & 易用性 |
-| v0.3.0 | +5 周 | 翻译质量提升 |
-| v0.4.0 | +7 周 | 批量处理 |
-| v0.5.0 | +11 周 | 说话人分离 |
-| v0.6.0 | +17 周 | GUI 界面 |
-| v1.0.0 | +24 周 | 正式发布 |
+**Goal**: Advanced features for professional fansubbers
 
----
+#### Subtitle Styling
+- [ ] Visual style editor
+- [ ] Preset style templates
+- [ ] Font, color, position customization
+- [ ] Effects support (gradients, outlines, etc.)
 
-## 🤝 贡献指南
+#### Audio Processing
+- [ ] Background music separation
+- [ ] Noise reduction
+- [ ] Volume normalization
 
-欢迎社区贡献！优先级高的任务：
-
-1. **文档翻译**：README 和文档的多语言版本
-2. **测试用例**：增加测试覆盖率
-3. **新提供商**：支持更多 Whisper/LLM API
-4. **Bug 修复**：Issue 中标记的问题
-
-详见 [CONTRIBUTING.md](../CONTRIBUTING.md)
+#### Special Scenarios
+- [ ] Lyrics recognition mode
+- [ ] Multi-language mixed processing
+- [ ] SDH subtitles (sound effect descriptions)
 
 ---
 
-## 💡 功能建议
+### v1.0.0 - Official Release
+> Estimated: 4-6 months total
 
-有新功能想法？请在 GitHub Issues 中提出，标记 `feature request`。
+**Goal**: Production-ready complete product
 
-社区投票高的功能会优先开发！
+#### Release Preparation
+- [ ] Complete documentation
+- [ ] Installers (Windows, macOS, Linux)
+- [ ] Auto-update mechanism
+- [ ] User feedback channels
+
+#### Commercial Features (Optional)
+- [ ] Pro version licensing system
+- [ ] Built-in API quota
+- [ ] Priority support
+
+---
+
+## 🏗️ Technical Debt & Optimization
+
+### Code Quality
+- [ ] Complete type annotations
+- [ ] Docstring coverage
+- [ ] Code review checklist
+
+### Architecture
+- [ ] Plugin system (easy to add new providers)
+- [ ] Configuration system refactor
+- [ ] Async I/O optimization
+
+### Dependency Management
+- [ ] Optional dependency groups
+- [ ] Version locking
+- [ ] Security update checks
+
+---
+
+## 📊 Milestones
+
+| Version | Target Date | Key Features |
+|---------|-------------|--------------|
+| v0.1.0 | ✅ Completed | MVP - Core workflow |
+| v0.2.0 | +2 weeks | Stability & usability |
+| v0.3.0 | +5 weeks | Translation quality |
+| v0.4.0 | +7 weeks | Batch processing |
+| v0.5.0 | +11 weeks | Speaker diarization |
+| v0.6.0 | +17 weeks | GUI interface |
+| v1.0.0 | +24 weeks | Official release |
+
+---
+
+## 🤝 Contribution Guide
+
+Community contributions welcome! High priority tasks:
+
+1. **Documentation**: Multi-language README and docs
+2. **Test cases**: Increase test coverage
+3. **New providers**: Support more Whisper/LLM APIs
+4. **Bug fixes**: Issues marked in GitHub
+
+See [CONTRIBUTING.md](../CONTRIBUTING.md)
+
+---
+
+## 💡 Feature Suggestions
+
+Have a new feature idea? Submit in GitHub Issues with the `feature request` label.
+
+Highly voted features will be prioritized!

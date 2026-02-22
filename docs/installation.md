@@ -1,16 +1,16 @@
-# 📦 安装指南
+# 📦 Installation Guide
 
-## 系统要求
+## System Requirements
 
-- **Python**: 3.10 或更高版本
-- **FFmpeg**: 必需，用于音频/视频处理
-- **GPU** (可选): 如果使用本地 Whisper，建议 NVIDIA GPU (4GB+ 显存)
+- **Python**: 3.10 or higher
+- **FFmpeg**: Required for audio/video processing
+- **GPU** (optional): NVIDIA GPU with 4GB+ VRAM recommended for local Whisper
 
 ---
 
-## 基础安装
+## Basic Installation
 
-### 1. 安装 FFmpeg
+### 1. Install FFmpeg
 
 **macOS**:
 ```bash
@@ -24,59 +24,59 @@ sudo apt install ffmpeg
 ```
 
 **Windows**:
-1. 下载 [FFmpeg](https://ffmpeg.org/download.html)
-2. 解压到 `C:\ffmpeg`
-3. 添加 `C:\ffmpeg\bin` 到系统 PATH
+1. Download [FFmpeg](https://ffmpeg.org/download.html)
+2. Extract to `C:\ffmpeg`
+3. Add `C:\ffmpeg\bin` to system PATH
 
-验证安装：
+Verify installation:
 ```bash
 ffmpeg -version
 ```
 
-### 2. 安装 SubGen
+### 2. Install SubGen
 
 ```bash
-# 克隆项目
-git clone https://github.com/YOUR_USERNAME/subgen.git
+# Clone the project
+git clone https://github.com/lgezyxr/subgen.git
 cd subgen
 
-# 创建虚拟环境
+# Create virtual environment
 python -m venv venv
 
-# 激活虚拟环境
+# Activate virtual environment
 # Linux/macOS:
 source venv/bin/activate
 # Windows:
 venv\Scripts\activate
 
-# 安装依赖
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 3. 配置
+### 3. Configure
 
 ```bash
-# 复制配置模板
+# Copy config template
 cp config.example.yaml config.yaml
 
-# 编辑配置，填入 API Keys
-nano config.yaml  # 或使用你喜欢的编辑器
+# Edit config and add your API keys
+nano config.yaml  # or use your preferred editor
 ```
 
 ---
 
-## 可选：本地 Whisper
+## Optional: Local Whisper
 
-如果你有 NVIDIA GPU，可以在本地运行 Whisper（免费且更快）：
+If you have an NVIDIA GPU, you can run Whisper locally (free and faster):
 
-### 1. 安装 CUDA
+### 1. Install CUDA
 
-确保已安装 NVIDIA 驱动和 CUDA。检查：
+Ensure NVIDIA drivers and CUDA are installed. Check:
 ```bash
 nvidia-smi
 ```
 
-### 2. 安装 PyTorch
+### 2. Install PyTorch
 
 ```bash
 # CUDA 11.8
@@ -86,27 +86,27 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 ```
 
-### 3. 安装 faster-whisper
+### 3. Install faster-whisper
 
 ```bash
 pip install faster-whisper
 ```
 
-### 4. 验证
+### 4. Verify
 
 ```python
 from faster_whisper import WhisperModel
 model = WhisperModel("base", device="cuda")
-print("Whisper 本地运行成功！")
+print("Local Whisper is working!")
 ```
 
 ---
 
-## 可选：本地 LLM (Ollama)
+## Optional: Local LLM (Ollama)
 
-如果你想完全离线翻译：
+For fully offline translation:
 
-### 1. 安装 Ollama
+### 1. Install Ollama
 
 **macOS/Linux**:
 ```bash
@@ -114,27 +114,27 @@ curl -fsSL https://ollama.com/install.sh | sh
 ```
 
 **Windows**:
-下载 [Ollama 安装包](https://ollama.com/download)
+Download [Ollama installer](https://ollama.com/download)
 
-### 2. 下载模型
+### 2. Download a Model
 
 ```bash
-# 推荐：Qwen2.5 (中文优化)
+# Recommended: Qwen2.5 (Chinese optimized)
 ollama pull qwen2.5:14b
 
-# 或：Llama 3
+# Or: Llama 3
 ollama pull llama3:8b
 ```
 
-### 3. 启动服务
+### 3. Start the Service
 
 ```bash
 ollama serve
 ```
 
-### 4. 配置 SubGen
+### 4. Configure SubGen
 
-在 `config.yaml` 中：
+In `config.yaml`:
 ```yaml
 translation:
   provider: "ollama"
@@ -144,39 +144,39 @@ translation:
 
 ---
 
-## 常见问题
+## Common Issues
 
-### FFmpeg 找不到
+### FFmpeg Not Found
 
-**错误**: `FileNotFoundError: ffmpeg not found`
+**Error**: `FileNotFoundError: ffmpeg not found`
 
-**解决**:
-1. 确认 FFmpeg 已安装：`ffmpeg -version`
-2. 确认 FFmpeg 在 PATH 中
-3. 或在配置中指定完整路径
+**Solution**:
+1. Confirm FFmpeg is installed: `ffmpeg -version`
+2. Confirm FFmpeg is in PATH
+3. Or specify full path in config
 
-### CUDA 内存不足
+### CUDA Out of Memory
 
-**错误**: `CUDA out of memory`
+**Error**: `CUDA out of memory`
 
-**解决**:
-1. 使用更小的模型：`local_model: "medium"` 或 `"small"`
-2. 关闭其他占用 GPU 的程序
-3. 使用云端 API 代替本地
+**Solution**:
+1. Use a smaller model: `local_model: "medium"` or `"small"`
+2. Close other GPU-intensive programs
+3. Use cloud API instead of local
 
-### API 请求失败
+### API Request Failed
 
-**错误**: `APIError: 401 Unauthorized`
+**Error**: `APIError: 401 Unauthorized`
 
-**解决**:
-1. 检查 API Key 是否正确
-2. 检查 API Key 是否有效（是否过期、是否有额度）
-3. 检查网络连接
+**Solution**:
+1. Check if API key is correct
+2. Check if API key is valid (not expired, has quota)
+3. Check network connection
 
 ---
 
-## 下一步
+## Next Steps
 
-安装完成后，请查看：
-- [配置说明](configuration.md) - 详细配置选项
-- [API 提供商设置](providers.md) - 如何获取各服务的 API Key
+After installation, see:
+- [Configuration](configuration.md) - Detailed config options
+- [API Providers Setup](providers.md) - How to get API keys for each service

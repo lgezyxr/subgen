@@ -1,10 +1,10 @@
-# ⚙️ 配置说明
+# ⚙️ Configuration
 
-SubGen 使用 YAML 配置文件管理所有设置。
+SubGen uses a YAML configuration file to manage all settings.
 
-## 配置文件位置
+## Config File Location
 
-默认读取当前目录的 `config.yaml`，也可以用 `--config` 参数指定：
+By default, it reads `config.yaml` from the current directory. Use `--config` to specify a different path:
 
 ```bash
 python subgen.py video.mp4 --config /path/to/my-config.yaml
@@ -12,26 +12,31 @@ python subgen.py video.mp4 --config /path/to/my-config.yaml
 
 ---
 
-## 完整配置项
+## Complete Configuration
 
-### Whisper 语音识别
+### Whisper Speech Recognition
 
 ```yaml
 whisper:
-  # 提供商选择
-  # - local: 本地运行 (需要 GPU)
-  # - openai: OpenAI Whisper API ($0.006/分钟)
-  # - groq: Groq API (有免费额度，超快)
+  # Provider selection
+  # - local: Run locally (requires GPU)
+  # - openai: OpenAI Whisper API ($0.006/min)
+  # - groq: Groq API (free tier available, very fast)
   provider: "openai"
   
-  # 本地模型选择 (仅 provider: local 时有效)
+  # Source language (optional)
+  # Specify to improve accuracy, or leave as "auto" for auto-detection
+  # en, es, ja, zh, fr, de, etc.
+  source_language: "auto"
+  
+  # Local model selection (only for provider: local)
   # tiny (39M) → base (74M) → small (244M) → medium (769M) → large-v3 (1.5B)
-  # 模型越大越准，但需要更多显存
+  # Larger models are more accurate but require more VRAM
   local_model: "large-v3"
   
-  # 设备选择 (仅 provider: local 时有效)
-  # cuda: NVIDIA GPU (推荐)
-  # cpu: CPU (很慢，不推荐)
+  # Device selection (only for provider: local)
+  # cuda: NVIDIA GPU (recommended)
+  # cpu: CPU (very slow, not recommended)
   device: "cuda"
   
   # API Keys
@@ -39,20 +44,20 @@ whisper:
   groq_key: "gsk_..."       # Groq API Key
 ```
 
-### LLM 翻译
+### LLM Translation
 
 ```yaml
 translation:
-  # 提供商选择
-  # - openai: OpenAI GPT 系列
+  # Provider selection
+  # - openai: OpenAI GPT series
   # - claude: Anthropic Claude
-  # - deepseek: DeepSeek (中文优化，便宜)
-  # - ollama: 本地 LLM (完全免费)
+  # - deepseek: DeepSeek (Chinese optimized, cheap)
+  # - ollama: Local LLM (completely free)
   provider: "openai"
   
-  # 模型选择
-  # OpenAI: gpt-4o-mini (便宜) | gpt-4o (最好)
-  # Claude: claude-3-haiku (快) | claude-3-sonnet (平衡)
+  # Model selection
+  # OpenAI: gpt-4o-mini (cheap) | gpt-4o (best quality)
+  # Claude: claude-3-haiku (fast) | claude-3-sonnet (balanced)
   # DeepSeek: deepseek-chat
   # Ollama: qwen2.5:14b | llama3:8b
   model: "gpt-4o-mini"
@@ -60,74 +65,78 @@ translation:
   # API Key (openai/claude/deepseek)
   api_key: "sk-..."
   
-  # 自定义 API 地址 (可选，用于代理或兼容接口)
+  # Custom API endpoint (optional, for proxies or compatible APIs)
   base_url: ""
   
-  # Ollama 配置
+  # Ollama configuration
   ollama_host: "http://localhost:11434"
   ollama_model: "qwen2.5:14b"
 ```
 
-### 输出设置
+### Output Settings
 
 ```yaml
 output:
-  # 字幕格式
-  # - srt: 最通用，所有播放器支持
-  # - ass: 支持样式，字幕组常用
-  # - vtt: Web 视频标准
+  # Subtitle format
+  # - srt: Most universal, all players support it
+  # - ass: Supports styling, commonly used by fansubbers
+  # - vtt: Web video standard
   format: "srt"
   
-  # 目标翻译语言
+  # Source language (for translation prompt)
+  # auto: auto-detect | en: English | ja: 日本語 | etc.
+  source_language: "auto"
+  
+  # Target translation language
   # zh: 中文 | en: English | ja: 日本語 | ko: 한국어
   # fr: Français | de: Deutsch | es: Español
   target_language: "zh"
   
-  # 双语字幕
-  # true: 显示原文 + 译文
-  # false: 只显示译文
+  # Bilingual subtitles
+  # true: Show original + translation
+  # false: Show translation only
   bilingual: false
   
-  # 每行最大字符数
-  # 控制字幕换行，避免一行太长
+  # Max characters per line
+  # Controls subtitle line breaks
   max_chars_per_line: 42
   
-  # 烧录字幕到视频
-  # true: 输出带字幕的新视频 (硬字幕)
-  # false: 只输出字幕文件
+  # Burn subtitles into video
+  # true: Output new video with subtitles (hardcoded)
+  # false: Output subtitle file only
   embed_in_video: false
 ```
 
-### 高级设置
+### Advanced Settings
 
 ```yaml
 advanced:
-  # 翻译批次大小
-  # 每次 API 调用翻译多少条字幕
-  # 太大可能超出 token 限制，太小效率低
+  # Translation batch size
+  # How many subtitles to translate per API call
+  # Too large may exceed token limits, too small is inefficient
   translation_batch_size: 20
   
-  # 翻译上下文大小
-  # 翻译时提供前后多少条字幕作为上下文
-  # 帮助保持翻译连贯性
+  # Translation context size
+  # How many surrounding subtitles to include as context
+  # Helps maintain translation consistency
   translation_context_size: 5
   
-  # 临时文件目录
+  # Temporary files directory
   temp_dir: "./temp"
   
-  # 保留临时文件 (调试用)
+  # Keep temporary files (for debugging)
   keep_temp_files: false
   
-  # 日志级别
+  # Log level
   # DEBUG | INFO | WARNING | ERROR
   log_level: "INFO"
 ```
 
 ---
 
-## 环境变量
+## Environment Variables
 
-API Keys 也可以通过环境变量设置（优先级低于配置文件）：
+API keys can also be set via environment variables (lower priority than config file):
 
 ```bash
 export OPENAI_API_KEY="sk-..."
@@ -138,9 +147,9 @@ export DEEPSEEK_API_KEY="sk-..."
 
 ---
 
-## 配置示例
+## Configuration Examples
 
-### 最便宜方案 (本地 Whisper + GPT-4o-mini)
+### Cheapest Option (Local Whisper + GPT-4o-mini)
 
 ```yaml
 whisper:
@@ -154,7 +163,7 @@ translation:
   api_key: "sk-..."
 ```
 
-### 最快方案 (Groq + GPT-4o)
+### Fastest Option (Groq + GPT-4o)
 
 ```yaml
 whisper:
@@ -167,7 +176,7 @@ translation:
   api_key: "sk-..."
 ```
 
-### 完全离线方案 (本地 Whisper + Ollama)
+### Fully Offline (Local Whisper + Ollama)
 
 ```yaml
 whisper:
@@ -181,7 +190,7 @@ translation:
   ollama_model: "qwen2.5:14b"
 ```
 
-### 中文优化方案 (DeepSeek)
+### Chinese-Optimized (DeepSeek)
 
 ```yaml
 whisper:
@@ -196,56 +205,56 @@ translation:
 
 ---
 
-## 翻译规则自定义
+## Custom Translation Rules
 
-SubGen 支持为不同目标语言配置专门的翻译规则。
+SubGen supports language-specific translation rules.
 
-### 规则文件位置
+### Rules File Location
 
-规则文件位于 `rules/` 目录：
+Rules files are in the `rules/` directory:
 
 ```
 subgen/
 ├── rules/
-│   ├── zh.md          # 中文规则
-│   ├── ja.md          # 日语规则
-│   ├── ko.md          # 韩语规则
-│   └── default.md     # 默认规则（兜底）
+│   ├── zh.md          # Chinese rules
+│   ├── ja.md          # Japanese rules
+│   ├── ko.md          # Korean rules
+│   └── default.md     # Default rules (fallback)
 ```
 
-### 规则加载顺序
+### Rule Loading Order
 
-1. 精确匹配：`zh-TW.md`
-2. 语言族匹配：`zh.md`（从 `zh-TW` 回退）
-3. 默认规则：`default.md`
+1. Exact match: `zh-TW.md`
+2. Language family: `zh.md` (fallback from `zh-TW`)
+3. Default: `default.md`
 
-### 规则文件格式
+### Rule File Format
 
-使用 Markdown 格式，便于阅读和编辑：
+Uses Markdown format for easy reading and editing:
 
 ```markdown
-# 中文字幕翻译规则
+# Chinese Subtitle Translation Rules
 
-## 标点符号
-- 使用半角标点符号
-- 书名用《》
+## Punctuation
+- Use half-width punctuation
+- Use 《》 for book titles
 
-## 数字翻译
-- 1-9 用中文：一、二、三
-- 10+ 用阿拉伯数字
+## Number Translation
+- 1-9 use Chinese: 一、二、三
+- 10+ use Arabic numerals
 ```
 
-### 添加新语言规则
+### Adding New Language Rules
 
-1. 在 `rules/` 目录创建 `{语言代码}.md` 文件
-2. 使用 Markdown 格式编写规则
-3. 规则会自动注入到翻译 prompt 中
+1. Create `{language_code}.md` in the `rules/` directory
+2. Write rules in Markdown format
+3. Rules are automatically injected into the translation prompt
 
-### 自定义规则目录
+### Custom Rules Directory
 
-规则文件按以下顺序查找：
-1. 项目目录 `./rules/`
-2. 当前工作目录 `./rules/`
-3. 用户目录 `~/.subgen/rules/`
+Rules files are searched in this order:
+1. Project directory `./rules/`
+2. Current working directory `./rules/`
+3. User directory `~/.subgen/rules/`
 
-可以在用户目录创建全局规则，或在项目目录创建项目特定规则。
+You can create global rules in your user directory or project-specific rules in the project directory.

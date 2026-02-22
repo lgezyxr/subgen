@@ -1,25 +1,25 @@
-# 🔑 API 提供商设置
+# 🔑 API Providers Setup
 
-如何获取各服务的 API Key。
+How to get API keys for each service.
 
 ---
 
-## 语音识别 (Whisper)
+## Speech Recognition (Whisper)
 
 ### OpenAI Whisper API
 
-**推荐度**: ⭐⭐⭐⭐⭐ (最稳定)
+**Recommendation**: ⭐⭐⭐⭐⭐ (Most stable)
 
-**价格**: $0.006/分钟 (2小时电影 ≈ $0.72)
+**Price**: $0.006/minute (2-hour movie ≈ $0.72)
 
-**获取步骤**:
-1. 访问 [OpenAI Platform](https://platform.openai.com/)
-2. 注册/登录账号
-3. 进入 [API Keys](https://platform.openai.com/api-keys) 页面
-4. 点击 "Create new secret key"
-5. 复制 Key (以 `sk-` 开头)
+**Steps**:
+1. Visit [OpenAI Platform](https://platform.openai.com/)
+2. Sign up / Log in
+3. Go to [API Keys](https://platform.openai.com/api-keys) page
+4. Click "Create new secret key"
+5. Copy the key (starts with `sk-`)
 
-**配置**:
+**Configuration**:
 ```yaml
 whisper:
   provider: "openai"
@@ -30,83 +30,83 @@ whisper:
 
 ### Groq API
 
-**推荐度**: ⭐⭐⭐⭐⭐ (免费额度 + 超快)
+**Recommendation**: ⭐⭐⭐⭐⭐ (Free tier + super fast)
 
-**价格**: 有免费额度，超出后按量计费
+**Price**: Free tier available, pay-as-you-go after
 
-**获取步骤**:
-1. 访问 [Groq Console](https://console.groq.com/)
-2. 注册账号 (支持 Google 登录)
-3. 进入 [API Keys](https://console.groq.com/keys) 页面
-4. 点击 "Create API Key"
-5. 复制 Key (以 `gsk_` 开头)
+**Steps**:
+1. Visit [Groq Console](https://console.groq.com/)
+2. Sign up (Google login supported)
+3. Go to [API Keys](https://console.groq.com/keys) page
+4. Click "Create API Key"
+5. Copy the key (starts with `gsk_`)
 
-**配置**:
+**Configuration**:
 ```yaml
 whisper:
   provider: "groq"
   groq_key: "gsk_..."
 ```
 
-**特点**:
-- 速度极快（2小时电影几十秒完成）
-- 有免费额度，适合尝试
-- 使用 whisper-large-v3 模型
+**Features**:
+- Extremely fast (2-hour movie in tens of seconds)
+- Free tier available, great for trying out
+- Uses whisper-large-v3 model
 
 ---
 
-### 本地 Whisper (faster-whisper)
+### Local Whisper (faster-whisper)
 
-**推荐度**: ⭐⭐⭐⭐ (免费，需要 GPU)
+**Recommendation**: ⭐⭐⭐⭐ (Free, requires GPU)
 
-**价格**: 免费
+**Price**: Free
 
-**要求**:
-- NVIDIA GPU (4GB+ 显存)
-- CUDA 安装
+**Requirements**:
+- NVIDIA GPU (4GB+ VRAM)
+- CUDA installed
 
-**安装**:
+**Installation**:
 ```bash
 pip install faster-whisper torch
 ```
 
-**配置**:
+**Configuration**:
 ```yaml
 whisper:
   provider: "local"
-  local_model: "large-v3"  # 或 medium/small
+  local_model: "large-v3"  # or medium/small
   device: "cuda"
 ```
 
-**显存需求**:
+**VRAM Requirements**:
 
-| 模型 | 显存 | 效果 |
-|------|------|------|
-| tiny | ~1GB | 凑合 |
-| base | ~1GB | 一般 |
-| small | ~2GB | 够用 |
-| medium | ~5GB | 不错 |
-| large-v3 | ~10GB | 最好 |
+| Model | VRAM | Quality |
+|-------|------|---------|
+| tiny | ~1GB | Basic |
+| base | ~1GB | Fair |
+| small | ~2GB | Good |
+| medium | ~5GB | Better |
+| large-v3 | ~10GB | Best |
 
 ---
 
-## 翻译 (LLM)
+## Translation (LLM)
 
 ### OpenAI GPT
 
-**推荐度**: ⭐⭐⭐⭐⭐
+**Recommendation**: ⭐⭐⭐⭐⭐
 
-**价格**:
-- gpt-4o-mini: ~$0.15/百万输入 token (推荐)
-- gpt-4o: ~$2.5/百万输入 token (最佳质量)
+**Price**:
+- gpt-4o-mini: ~$0.15/M input tokens (recommended)
+- gpt-4o: ~$2.5/M input tokens (best quality)
 
-**获取步骤**: 同 OpenAI Whisper API
+**Steps**: Same as OpenAI Whisper API
 
-**配置**:
+**Configuration**:
 ```yaml
 translation:
   provider: "openai"
-  model: "gpt-4o-mini"  # 或 gpt-4o
+  model: "gpt-4o-mini"  # or gpt-4o
   api_key: "sk-..."
 ```
 
@@ -114,19 +114,19 @@ translation:
 
 ### Anthropic Claude
 
-**推荐度**: ⭐⭐⭐⭐
+**Recommendation**: ⭐⭐⭐⭐
 
-**价格**:
-- claude-3-haiku: ~$0.25/百万输入 token
-- claude-3-sonnet: ~$3/百万输入 token
+**Price**:
+- claude-3-haiku: ~$0.25/M input tokens
+- claude-3-sonnet: ~$3/M input tokens
 
-**获取步骤**:
-1. 访问 [Anthropic Console](https://console.anthropic.com/)
-2. 注册账号
-3. 进入 [API Keys](https://console.anthropic.com/settings/keys) 页面
-4. 创建新 Key
+**Steps**:
+1. Visit [Anthropic Console](https://console.anthropic.com/)
+2. Sign up
+3. Go to [API Keys](https://console.anthropic.com/settings/keys) page
+4. Create new key
 
-**配置**:
+**Configuration**:
 ```yaml
 translation:
   provider: "claude"
@@ -138,17 +138,17 @@ translation:
 
 ### DeepSeek
 
-**推荐度**: ⭐⭐⭐⭐⭐ (中文翻译首选)
+**Recommendation**: ⭐⭐⭐⭐⭐ (Best for Chinese translation)
 
-**价格**: ~¥1/百万 token (超便宜)
+**Price**: ~¥1/M tokens (very cheap)
 
-**获取步骤**:
-1. 访问 [DeepSeek Platform](https://platform.deepseek.com/)
-2. 注册账号
-3. 进入 API Keys 页面
-4. 创建新 Key
+**Steps**:
+1. Visit [DeepSeek Platform](https://platform.deepseek.com/)
+2. Sign up
+3. Go to API Keys page
+4. Create new key
 
-**配置**:
+**Configuration**:
 ```yaml
 translation:
   provider: "deepseek"
@@ -156,33 +156,33 @@ translation:
   api_key: "sk-..."
 ```
 
-**特点**:
-- 中文效果很好
-- 价格极低
-- 兼容 OpenAI 接口
+**Features**:
+- Excellent Chinese output
+- Very low cost
+- OpenAI-compatible API
 
 ---
 
-### Ollama (本地 LLM)
+### Ollama (Local LLM)
 
-**推荐度**: ⭐⭐⭐⭐ (完全免费)
+**Recommendation**: ⭐⭐⭐⭐ (Completely free)
 
-**价格**: 免费
+**Price**: Free
 
-**要求**:
-- 16GB+ 显存 (14B 模型)
-- 8GB+ 显存 (7B 模型)
+**Requirements**:
+- 16GB+ VRAM (14B model)
+- 8GB+ VRAM (7B model)
 
-**安装**:
+**Installation**:
 ```bash
 # macOS/Linux
 curl -fsSL https://ollama.com/install.sh | sh
 
-# 下载模型
+# Download model
 ollama pull qwen2.5:14b
 ```
 
-**配置**:
+**Configuration**:
 ```yaml
 translation:
   provider: "ollama"
@@ -190,35 +190,35 @@ translation:
   ollama_model: "qwen2.5:14b"
 ```
 
-**推荐模型**:
+**Recommended Models**:
 
-| 模型 | 显存 | 中文效果 |
-|------|------|----------|
-| qwen2.5:7b | ~8GB | 好 |
-| qwen2.5:14b | ~16GB | 很好 |
-| llama3:8b | ~8GB | 一般 |
+| Model | VRAM | Chinese Quality |
+|-------|------|-----------------|
+| qwen2.5:7b | ~8GB | Good |
+| qwen2.5:14b | ~16GB | Very good |
+| llama3:8b | ~8GB | Fair |
 
 ---
 
-## 费用对比
+## Cost Comparison
 
-翻译一部 2 小时电影：
+Translating a 2-hour movie:
 
-| 方案 | Whisper 费用 | 翻译费用 | 总计 |
-|------|--------------|----------|------|
+| Setup | Whisper Cost | Translation Cost | Total |
+|-------|--------------|------------------|-------|
 | OpenAI + GPT-4o-mini | $0.72 | ~$0.05 | **~$0.77** |
-| Groq + GPT-4o-mini | 免费额度 | ~$0.05 | **~$0.05** |
-| 本地 + DeepSeek | 免费 | ~¥0.1 | **~¥0.1** |
-| 本地 + Ollama | 免费 | 免费 | **免费** |
+| Groq + GPT-4o-mini | Free tier | ~$0.05 | **~$0.05** |
+| Local + DeepSeek | Free | ~¥0.1 | **~¥0.1** |
+| Local + Ollama | Free | Free | **Free** |
 
 ---
 
-## 推荐组合
+## Recommended Combinations
 
-| 场景 | Whisper | 翻译 | 理由 |
-|------|---------|------|------|
-| 新手尝试 | Groq | GPT-4o-mini | 免费 + 便宜 |
-| 日常使用 | 本地 | GPT-4o-mini | 低成本 |
-| 追求质量 | 本地 | GPT-4o | 翻译最准 |
-| 完全免费 | 本地 | Ollama | 零成本 |
-| 中文优化 | 本地 | DeepSeek | 中文效果好 |
+| Use Case | Whisper | Translation | Reason |
+|----------|---------|-------------|--------|
+| First-time user | Groq | GPT-4o-mini | Free + cheap |
+| Daily use | Local | GPT-4o-mini | Low cost |
+| Quality focus | Local | GPT-4o | Best translation |
+| Completely free | Local | Ollama | Zero cost |
+| Chinese optimized | Local | DeepSeek | Great Chinese output |

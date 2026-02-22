@@ -1,17 +1,17 @@
-"""配置加载模块"""
+"""Configuration loading module"""
 
 import yaml
 from pathlib import Path
 from typing import Dict, Any
 
 
-# 默认配置
+# Default configuration
 DEFAULT_CONFIG: Dict[str, Any] = {
     'whisper': {
         'provider': 'local',
         'local_model': 'large-v3',
         'device': 'cuda',
-        'source_language': 'auto',  # 源语言，auto=自动检测
+        'source_language': 'auto',  # Source language, auto=auto-detect
     },
     'translation': {
         'provider': 'openai',
@@ -19,8 +19,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     'output': {
         'format': 'srt',
-        'source_language': 'auto',  # 翻译源语言
-        'target_language': 'zh',    # 翻译目标语言
+        'source_language': 'auto',  # Translation source language
+        'target_language': 'zh',    # Translation target language
         'bilingual': False,
         'max_chars_per_line': 42,
         'embed_in_video': False,
@@ -35,16 +35,16 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 
 
 def load_config(config_path: str = "config.yaml") -> Dict[str, Any]:
-    """加载配置文件"""
+    """Load configuration file"""
     path = Path(config_path)
 
     if not path.exists():
-        raise FileNotFoundError(f"配置文件不存在: {config_path}")
+        raise FileNotFoundError(f"Config file not found: {config_path}")
 
     with open(path, 'r', encoding='utf-8') as f:
         config = yaml.safe_load(f) or {}
 
-    # 与默认配置合并
+    # Merge with default config
     import copy
     result = copy.deepcopy(DEFAULT_CONFIG)
     for key, value in config.items():
@@ -57,13 +57,13 @@ def load_config(config_path: str = "config.yaml") -> Dict[str, Any]:
 
 
 def get_api_key(config: Dict[str, Any], provider: str, key_name: str) -> str:
-    """获取 API Key，支持从环境变量读取"""
+    """Get API key, supports reading from environment variables"""
     import os
 
-    # 先从配置文件读
+    # First try config file
     key = config.get(provider, {}).get(key_name, '')
 
-    # 如果为空，尝试从环境变量读
+    # If empty, try environment variable
     if not key:
         env_var_name = f"{provider.upper()}_{key_name.upper()}"
         key = os.environ.get(env_var_name, '')

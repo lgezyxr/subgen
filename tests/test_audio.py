@@ -1,11 +1,11 @@
-"""音频模块单元测试"""
+"""Audio module unit tests"""
 
 from unittest.mock import patch
 from src.audio import check_ffmpeg, check_ffprobe
 
 
 class TestFFmpegCheck:
-    """FFmpeg/FFprobe 检查测试"""
+    """FFmpeg/FFprobe check tests"""
 
     @patch('shutil.which')
     def test_ffmpeg_found(self, mock_which):

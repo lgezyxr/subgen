@@ -1,14 +1,14 @@
-"""配置模块单元测试"""
+"""Configuration module unit tests"""
 
 import pytest
 from src.config import load_config, DEFAULT_CONFIG
 
 
 class TestLoadConfig:
-    """配置加载测试"""
+    """Configuration loading tests"""
 
     def test_load_valid_config(self, tmp_path):
-        """加载有效配置"""
+        """Load valid config file"""
         config_file = tmp_path / "config.yaml"
         config_file.write_text("""
 whisper:
@@ -21,36 +21,36 @@ output:
         assert cfg['output']['format'] == 'srt'
 
     def test_load_missing_file(self):
-        """加载不存在的文件应报错"""
+        """Loading non-existent file should raise error"""
         with pytest.raises(FileNotFoundError):
             load_config("/nonexistent/config.yaml")
 
     def test_default_config_structure(self):
-        """默认配置应包含所有必要键"""
+        """Default config should contain all required keys"""
         assert 'whisper' in DEFAULT_CONFIG
         assert 'translation' in DEFAULT_CONFIG
         assert 'output' in DEFAULT_CONFIG
         assert 'advanced' in DEFAULT_CONFIG
 
     def test_default_config_values(self):
-        """默认配置值检查"""
+        """Default config values check"""
         assert DEFAULT_CONFIG['whisper']['provider'] == 'local'
         assert DEFAULT_CONFIG['output']['format'] == 'srt'
         assert DEFAULT_CONFIG['output']['bilingual'] is False
 
     def test_config_merge_with_defaults(self, tmp_path):
-        """用户配置应与默认配置合并"""
+        """User config should merge with defaults"""
         config_file = tmp_path / "config.yaml"
-        # 只覆盖部分配置
+        # Only override partial config
         config_file.write_text("""
 whisper:
   provider: groq
 """)
         cfg = load_config(str(config_file))
-        # 用户指定的值
+        # User specified value
         assert cfg['whisper']['provider'] == 'groq'
-        # 默认值应该保留
+        # Default values should be preserved
         assert 'output' in cfg
         assert cfg['output']['format'] == 'srt'
-        # whisper 的其他默认值也应该保留
+        # Other whisper defaults should also be preserved
         assert cfg['whisper']['local_model'] == 'large-v3'
