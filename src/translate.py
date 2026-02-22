@@ -277,7 +277,7 @@ def _group_segments_by_sentence(segments: List[Segment]) -> List[List[Segment]]:
 def translate_segments_sentence_aware(
     segments: List[Segment],
     config: Dict[str, Any],
-    translate_fn: Callable,
+    translate_fn: Callable = None,
     progress_callback: Optional[Callable[[int], None]] = None
 ) -> List[Segment]:
     """
@@ -292,6 +292,24 @@ def translate_segments_sentence_aware(
     source_lang = config.get('output', {}).get('source_language', 'auto')
     target_lang = config.get('output', {}).get('target_language', 'zh')
     max_chars = config.get('output', {}).get('max_chars_per_line', 40)
+    
+    # Get translate function if not provided
+    if translate_fn is None:
+        provider = config.get('translation', {}).get('provider', 'openai')
+        if provider == 'openai':
+            translate_fn = _translate_openai
+        elif provider == 'claude':
+            translate_fn = _translate_claude
+        elif provider == 'deepseek':
+            translate_fn = _translate_deepseek
+        elif provider == 'ollama':
+            translate_fn = _translate_ollama
+        elif provider == 'copilot':
+            translate_fn = _translate_copilot
+        elif provider == 'chatgpt':
+            translate_fn = _translate_chatgpt
+        else:
+            raise ValueError(f"Unsupported translation provider: {provider}")
     
     # Group segments by sentence
     groups = _group_segments_by_sentence(segments)
