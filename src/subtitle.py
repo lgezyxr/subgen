@@ -1,7 +1,6 @@
 """字幕生成模块"""
 
 import subprocess
-import shlex
 from pathlib import Path
 from typing import Dict, Any, List
 from .transcribe import Segment
@@ -182,7 +181,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 
 def _escape_ffmpeg_filter_path(path: str) -> str:
-    """
+    r"""
     转义 FFmpeg filter 中的路径
     FFmpeg filter 需要转义: \ ' : [ ]
     """
