@@ -226,9 +226,16 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
             if response != 'y':
                 sys.exit(1)
         
-        # Use auto-detected model if available
+        # Choose model based on VRAM (local model names, not cloud API names)
         if hw.has_nvidia_gpu and hw.nvidia_vram_gb:
-            model = rec_model
+            if hw.nvidia_vram_gb >= 8:
+                model = "large-v3"
+            elif hw.nvidia_vram_gb >= 5:
+                model = "medium"
+            elif hw.nvidia_vram_gb >= 3:
+                model = "small"
+            else:
+                model = "base"
         else:
             model = "large-v3"
         config["whisper"]["local_model"] = model
