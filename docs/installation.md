@@ -1,101 +1,89 @@
 # 📦 Installation Guide
 
-## System Requirements
+## Requirements
 
-- **Python**: 3.9 or higher
-- **FFmpeg**: Required for audio/video processing
+- **Python**: 3.9+
+- **FFmpeg**: Required for audio extraction
 - **GPU** (optional): NVIDIA GPU or Apple Silicon for local Whisper
 
 ---
 
-## Basic Installation
-
-### 1. Install FFmpeg
-
-**macOS**:
-```bash
-brew install ffmpeg
-```
-
-**Ubuntu/Debian**:
-```bash
-sudo apt update
-sudo apt install ffmpeg
-```
-
-**Windows**:
-```powershell
-# Option 1: Using winget (Windows 10+)
-winget install FFmpeg
-
-# Option 2: Using Chocolatey
-choco install ffmpeg
-
-# Option 3: Manual installation
-# 1. Download from https://www.gyan.dev/ffmpeg/builds/
-# 2. Extract to C:\ffmpeg
-# 3. Add C:\ffmpeg\bin to system PATH
-```
-
-Verify installation:
-```bash
-ffmpeg -version
-```
-
-### 2. Install SubGen
+## Quick Install
 
 ```bash
-# Clone the project
+# Clone
 git clone https://github.com/lgezyxr/subgen.git
 cd subgen
 
 # Create virtual environment
 python -m venv venv
 
-# Activate virtual environment
-# Linux/macOS:
-source venv/bin/activate
-# Windows PowerShell:
-.\venv\Scripts\Activate.ps1
-# Windows CMD:
-venv\Scripts\activate.bat
+# Activate
+source venv/bin/activate      # Linux/macOS
+venv\Scripts\activate         # Windows CMD
+.\venv\Scripts\Activate.ps1   # Windows PowerShell
 
 # Install dependencies
 pip install -r requirements.txt
-```
 
-### 3. Run Setup Wizard
-
-```bash
+# Run setup wizard
 python subgen.py init
 ```
 
-This interactive wizard will help you:
-- Choose Whisper provider
-- Choose LLM provider
-- Set up API keys or OAuth login
-- Create your `config.yaml`
+---
+
+## Install FFmpeg
+
+### macOS
+```bash
+brew install ffmpeg
+```
+
+### Ubuntu/Debian
+```bash
+sudo apt update && sudo apt install ffmpeg
+```
+
+### Windows
+```powershell
+# Option 1: winget (Windows 10+)
+winget install FFmpeg
+
+# Option 2: Chocolatey
+choco install ffmpeg
+
+# Option 3: Manual
+# Download from https://www.gyan.dev/ffmpeg/builds/
+# Extract to C:\ffmpeg
+# Add C:\ffmpeg\bin to PATH
+```
+
+Verify:
+```bash
+ffmpeg -version
+```
 
 ---
 
 ## Platform-Specific Setup
 
-### Apple Silicon (M1/M2/M3 Mac)
+### 🍎 Apple Silicon (M1/M2/M3)
 
-MLX Whisper is **highly recommended** for Apple Silicon - it's fast and free:
+MLX Whisper is **highly recommended** - fast and free:
 
 ```bash
 pip install mlx-whisper
 ```
 
-Configure in `config.yaml`:
 ```yaml
 whisper:
   provider: "mlx"
   local_model: "large-v3"
 ```
 
-### Windows with NVIDIA GPU
+---
+
+### 🖥️ Windows + NVIDIA GPU
 
 ```powershell
 # Install PyTorch with CUDA
@@ -105,7 +93,6 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 pip install faster-whisper
 ```
 
-Configure in `config.yaml`:
 ```yaml
 whisper:
   provider: "local"
@@ -113,42 +100,52 @@ whisper:
   local_model: "large-v3"
 ```
 
-### Windows without GPU
+**Older GPUs (GTX 10xx/Pascal)**: Add `compute_type: "float32"`
 
-Use cloud APIs (OpenAI Whisper or Groq):
+---
+
+### 🖥️ Windows without GPU
+
+Use cloud APIs:
 
 ```yaml
 whisper:
-  provider: "groq"  # Free tier available, very fast
-```
-
-Or use CPU-based local Whisper (slower):
-```yaml
-whisper:
-  provider: "local"
-  device: "cpu"
-  local_model: "base"  # Use smaller model for CPU
+  provider: "groq"  # Free tier, very fast
+  groq_key: "gsk_..."
 ```
 
 ---
 
-## OAuth Login (No API Key Needed)
+### 🐧 Linux + NVIDIA GPU
 
-If you have ChatGPT Plus/Pro or GitHub Copilot subscription:
+```bash
+# Install CUDA toolkit first (if not installed)
+# Then:
+pip install torch --index-url https://download.pytorch.org/whl/cu121
+pip install faster-whisper
+```
+
+---
+
+## OAuth Setup (Recommended)
+
+Use your existing subscriptions - no API keys needed!
 
 ### ChatGPT Plus/Pro
 
 ```bash
 python subgen.py auth login chatgpt
 ```
-A browser window will open. Log in with your OpenAI account.
+
+Browser opens → Log in → Done!
 
 ### GitHub Copilot
 
 ```bash
 python subgen.py auth login copilot
 ```
-Follow the device code flow to authenticate.
+
+Follow device code flow.
 
 ### Check Status
 
@@ -158,33 +155,29 @@ python subgen.py auth status
 
 ---
 
-## Optional: Local LLM (Ollama)
+## Optional: Ollama (Offline LLM)
 
 For fully offline translation:
 
 ### 1. Install Ollama
 
-**macOS/Linux**:
 ```bash
+# macOS/Linux
 curl -fsSL https://ollama.com/install.sh | sh
+
+# Windows: download from ollama.com
 ```
 
-**Windows**:
-Download [Ollama installer](https://ollama.com/download)
-
-### 2. Download a Model
+### 2. Download Model
 
 ```bash
-# Recommended: Qwen2.5 (Chinese optimized)
-ollama pull qwen2.5:14b
-
-# Or: Llama 3
-ollama pull llama3:8b
+ollama pull qwen2.5:14b   # Best for Chinese (16GB VRAM)
+ollama pull qwen2.5:7b    # Smaller (8GB VRAM)
+ollama pull llama3:8b     # General purpose
 ```
 
-### 3. Configure SubGen
+### 3. Configure
 
-In `config.yaml`:
 ```yaml
 translation:
   provider: "ollama"
@@ -193,58 +186,46 @@ translation:
 
 ---
 
-## Common Issues
+## Verify Installation
 
-### FFmpeg Not Found
+```bash
+# Check everything works
+python subgen.py init
 
-**Error**: `FileNotFoundError: ffmpeg not found`
+# Test with a short video
+python subgen.py run test.mp4 -s --to zh --debug
+```
 
-**Solution**:
-1. Confirm FFmpeg is installed: `ffmpeg -version`
-2. Confirm FFmpeg is in PATH
-3. Restart terminal/PowerShell after adding to PATH
+---
 
-### Windows: PowerShell Execution Policy
+## Troubleshooting
 
-**Error**: `cannot be loaded because running scripts is disabled`
+### PowerShell Execution Policy (Windows)
 
-**Solution**:
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 
-### CUDA Out of Memory
+### CUDA Not Found
 
-**Error**: `CUDA out of memory`
+1. Verify CUDA installation: `nvcc --version`
+2. Verify PyTorch sees GPU: `python -c "import torch; print(torch.cuda.is_available())"`
+3. Install correct PyTorch version for your CUDA
 
-**Solution**:
-1. Use a smaller model: `local_model: "medium"` or `"small"`
-2. Close other GPU-intensive programs
-3. Use cloud API instead of local
+### Package Conflicts (Anaconda)
 
-### API Request Failed
+If using Anaconda, create a conda environment instead:
 
-**Error**: `APIError: 401 Unauthorized`
-
-**Solution**:
-1. Check if API key is correct
-2. Check if API key is valid (not expired, has quota)
-3. Check network connection
+```bash
+conda create -n subgen python=3.11
+conda activate subgen
+pip install -r requirements.txt
+```
 
 ---
 
 ## Next Steps
 
-After installation:
-
-```bash
-# Run the setup wizard
-python subgen.py init
-
-# Generate your first subtitle
-python subgen.py run video.mp4 -s --to zh
-```
-
-See also:
-- [Configuration](configuration.md) - Detailed config options
-- [API Providers Setup](providers.md) - How to get API keys
+1. Run `python subgen.py init` to configure
+2. Try: `python subgen.py run video.mp4 -s --to zh`
+3. See [Configuration](configuration.md) for all options

@@ -1,142 +1,224 @@
 # ⚙️ Configuration
 
-SubGen uses a YAML configuration file to manage all settings.
+SubGen uses `config.yaml` for all settings. Run `python subgen.py init` to create one interactively.
 
 ## Config File Location
 
-By default, it reads `config.yaml` from the current directory. Use `--config` to specify a different path:
+Default: `./config.yaml` in current directory.
 
 ```bash
-python subgen.py video.mp4 --config /path/to/my-config.yaml
+# Use custom config
+python subgen.py run video.mp4 --config /path/to/config.yaml
 ```
 
 ---
 
-## Complete Configuration
+## Complete Configuration Reference
 
-### Whisper Speech Recognition
+### Whisper (Speech Recognition)
 
 ```yaml
 whisper:
-  # Provider selection
-  # - local: Run locally (requires GPU)
-  # - openai: OpenAI Whisper API ($0.006/min)
-  # - groq: Groq API (free tier available, very fast)
-  provider: "openai"
+  # Provider: local | mlx | openai | groq
+  provider: "local"
   
-  # Source language (optional)
-  # Specify to improve accuracy, or leave as "auto" for auto-detection
-  # en, es, ja, zh, fr, de, etc.
-  source_language: "auto"
-  
-  # Local model selection (only for provider: local)
-  # tiny (39M) → base (74M) → small (244M) → medium (769M) → large-v3 (1.5B)
-  # Larger models are more accurate but require more VRAM
+  # Local/MLX model: tiny | base | small | medium | large-v3
   local_model: "large-v3"
   
-  # Device selection (only for provider: local)
-  # cuda: NVIDIA GPU (recommended)
-  # cpu: CPU (very slow, not recommended)
+  # Device for local provider: cuda | cpu
   device: "cuda"
   
-  # API Keys
-  openai_key: "sk-..."      # OpenAI API Key
-  groq_key: "gsk_..."       # Groq API Key
+  # Compute type for local provider (auto-detected if not set)
+  # float16: Fast, requires modern GPU (RTX series)
+  # float32: Compatible with older GPUs (GTX 10xx)
+  # int8: Smallest memory footprint
+  compute_type: "float16"
+  
+  # API keys (if using cloud providers)
+  openai_key: "sk-..."
+  groq_key: "gsk_..."
 ```
 
-### LLM Translation
+### Translation (LLM)
 
 ```yaml
 translation:
-  # Provider selection
-  # - openai: OpenAI GPT series
-  # - claude: Anthropic Claude
-  # - deepseek: DeepSeek (Chinese optimized, cheap)
-  # - ollama: Local LLM (completely free)
-  provider: "openai"
+  # Provider: openai | claude | deepseek | ollama | chatgpt | copilot
+  provider: "chatgpt"
   
   # Model selection
-  # OpenAI: gpt-4o-mini (cheap) | gpt-4o (best quality)
-  # Claude: claude-3-haiku (fast) | claude-3-sonnet (balanced)
+  # ChatGPT: gpt-5.3-codex (default, has reasoning) | gpt-5.1-codex-mini
+  # OpenAI: gpt-4o-mini | gpt-4o
+  # Claude: claude-sonnet-4-20250514 | claude-3-haiku-20240307
   # DeepSeek: deepseek-chat
   # Ollama: qwen2.5:14b | llama3:8b
-  model: "gpt-4o-mini"
+  model: "gpt-5.3-codex"
   
-  # API Key (openai/claude/deepseek)
+  # API keys (required for non-OAuth providers)
   api_key: "sk-..."
   
-  # Custom API endpoint (optional, for proxies or compatible APIs)
-  base_url: ""
-  
-  # Ollama configuration
-  ollama_host: "http://localhost:11434"
-  ollama_model: "qwen2.5:14b"
+  # Ollama settings
+  ollama_url: "http://localhost:11434"
 ```
 
-### Output Settings
+### Output
 
 ```yaml
 output:
-  # Subtitle format
-  # - srt: Most universal, all players support it
-  # - ass: Supports styling, commonly used by fansubbers
-  # - vtt: Web video standard
+  # Subtitle format: srt | ass | vtt
   format: "srt"
   
-  # Source language (for translation prompt)
-  # auto: auto-detect | en: English | ja: 日本語 | etc.
+  # Source language (auto = auto-detect)
   source_language: "auto"
   
-  # Target translation language
-  # zh: 中文 | en: English | ja: 日本語 | ko: 한국어
-  # fr: Français | de: Deutsch | es: Español
+  # Target language
   target_language: "zh"
   
-  # Bilingual subtitles
-  # true: Show original + translation
-  # false: Show translation only
+  # Show both original + translation
   bilingual: false
   
-  # Max characters per line
-  # Controls subtitle line breaks
+  # Max characters per subtitle line
   max_chars_per_line: 42
-  
-  # Burn subtitles into video
-  # true: Output new video with subtitles (hardcoded)
-  # false: Output subtitle file only
-  embed_in_video: false
 ```
 
-### Advanced Settings
+### Advanced
 
 ```yaml
 advanced:
-  # Translation batch size
-  # How many subtitles to translate per API call
-  # Too large may exceed token limits, too small is inefficient
+  # --- Transcription ---
+  
+  # Auto-split long segments using word timestamps
+  split_long_segments: true
+  max_segment_duration: 15.0
+  
+  # Filter music/noise by no_speech_prob (disabled by default)
+  filter_music: false
+  no_speech_threshold: 0.6
+  
+  # Filter by speech density (disabled by default)
+  validate_segments: false
+  min_words_per_sec: 0.3
+  
+  # --- Translation ---
+  
+  # Batch size (subtitles per API call)
   translation_batch_size: 20
   
-  # Translation context size
-  # How many surrounding subtitles to include as context
-  # Helps maintain translation consistency
+  # Context window (surrounding subtitles for reference)
   translation_context_size: 5
   
-  # Temporary files directory
+  # Max segments per sentence group (prevents runaway grouping)
+  max_group_size: 10
+  
+  # --- Proofreading ---
+  
+  # Override batch size for proofreading
+  proofread_batch_size: 50
+  
+  # Max context chars for proofreading
+  proofread_context_chars: 15000
+  
+  # --- Other ---
+  
   temp_dir: "./temp"
-  
-  # Keep temporary files (for debugging)
   keep_temp_files: false
-  
-  # Log level
-  # DEBUG | INFO | WARNING | ERROR
   log_level: "INFO"
+```
+
+---
+
+## Configuration Examples
+
+### ChatGPT Plus User (Recommended)
+
+```yaml
+whisper:
+  provider: "local"  # or "mlx" for Apple Silicon
+  local_model: "large-v3"
+  device: "cuda"
+
+translation:
+  provider: "chatgpt"
+  model: "gpt-5.3-codex"
+
+output:
+  target_language: "zh"
+```
+
+First run `python subgen.py auth login chatgpt` to authenticate.
+
+### Cheapest Cloud Setup
+
+```yaml
+whisper:
+  provider: "groq"
+  groq_key: "gsk_..."
+
+translation:
+  provider: "deepseek"
+  api_key: "sk-..."
+
+output:
+  target_language: "zh"
+```
+
+### Fully Offline
+
+```yaml
+whisper:
+  provider: "local"
+  local_model: "large-v3"
+  device: "cuda"
+
+translation:
+  provider: "ollama"
+  ollama_url: "http://localhost:11434"
+  model: "qwen2.5:14b"
+
+output:
+  target_language: "zh"
+```
+
+### Apple Silicon Optimized
+
+```yaml
+whisper:
+  provider: "mlx"
+  local_model: "large-v3"
+
+translation:
+  provider: "chatgpt"
+  model: "gpt-5.3-codex"
+
+output:
+  target_language: "zh"
+```
+
+### Best Quality (GPU + Proofreading)
+
+```yaml
+whisper:
+  provider: "local"
+  local_model: "large-v3"
+  device: "cuda"
+
+translation:
+  provider: "chatgpt"
+  model: "gpt-5.3-codex"
+
+output:
+  target_language: "zh"
+
+advanced:
+  proofread_batch_size: 50
+  proofread_context_chars: 20000
 ```
 
 ---
 
 ## Environment Variables
 
-API keys can also be set via environment variables (lower priority than config file):
+API keys can be set via environment variables (config file takes precedence):
 
 ```bash
 export OPENAI_API_KEY="sk-..."
@@ -147,114 +229,66 @@ export DEEPSEEK_API_KEY="sk-..."
 
 ---
 
-## Configuration Examples
+## Translation Rules
 
-### Cheapest Option (Local Whisper + GPT-4o-mini)
+SubGen uses language-specific translation rules to improve quality.
 
-```yaml
-whisper:
-  provider: "local"
-  local_model: "large-v3"
-  device: "cuda"
+### Rules Files
 
-translation:
-  provider: "openai"
-  model: "gpt-4o-mini"
-  api_key: "sk-..."
-```
-
-### Fastest Option (Groq + GPT-4o)
-
-```yaml
-whisper:
-  provider: "groq"
-  groq_key: "gsk_..."
-
-translation:
-  provider: "openai"
-  model: "gpt-4o"
-  api_key: "sk-..."
-```
-
-### Fully Offline (Local Whisper + Ollama)
-
-```yaml
-whisper:
-  provider: "local"
-  local_model: "large-v3"
-  device: "cuda"
-
-translation:
-  provider: "ollama"
-  ollama_host: "http://localhost:11434"
-  ollama_model: "qwen2.5:14b"
-```
-
-### Chinese-Optimized (DeepSeek)
-
-```yaml
-whisper:
-  provider: "openai"
-  openai_key: "sk-..."
-
-translation:
-  provider: "deepseek"
-  model: "deepseek-chat"
-  api_key: "sk-..."
-```
-
----
-
-## Custom Translation Rules
-
-SubGen supports language-specific translation rules.
-
-### Rules File Location
-
-Rules files are in the `rules/` directory:
+Located in `rules/` directory:
 
 ```
-subgen/
-├── rules/
-│   ├── zh.md          # Chinese rules
-│   ├── ja.md          # Japanese rules
-│   ├── ko.md          # Korean rules
-│   └── default.md     # Default rules (fallback)
+rules/
+├── default.md   # Fallback rules
+├── zh.md        # Chinese-specific rules
+├── ja.md        # Japanese-specific rules
+└── ko.md        # Korean-specific rules
 ```
 
 ### Rule Loading Order
 
 1. Exact match: `zh-TW.md`
-2. Language family: `zh.md` (fallback from `zh-TW`)
+2. Language fallback: `zh.md`
 3. Default: `default.md`
 
-### Rule File Format
+### Custom Rules
 
-Uses Markdown format for easy reading and editing:
+Create your own rules file in Markdown format:
 
 ```markdown
-# Chinese Subtitle Translation Rules
+# Translation Rules for [Language]
 
-## Punctuation
-- Use half-width punctuation
-- Use 《》 for book titles
+## Style
+- Use conversational tone
+- Keep sentences concise
 
-## Number Translation
-- 1-9 use Chinese: 一、二、三
-- 10+ use Arabic numerals
+## Terminology
+- "AI" → "人工智能" (not "AI")
+- Character names: keep original
 ```
 
-### Adding New Language Rules
+### Rules Search Path
 
-1. Create `{language_code}.md` in the `rules/` directory
-2. Write rules in Markdown format
-3. Rules are automatically injected into the translation prompt
+1. `./rules/` (project directory)
+2. `~/.subgen/rules/` (user directory)
 
-### Custom Rules Directory
+---
 
-Rules files are searched in this order:
-1. Project directory `./rules/`
-2. Current working directory `./rules/`
-3. User directory `~/.subgen/rules/`
+## Model-Specific Settings
 
-You can create global rules in your user directory or project-specific rules in the project directory.
+Proofreading automatically adjusts batch size based on model:
+
+| Model | Batch Size | Context Chars |
+|-------|------------|---------------|
+| gpt-4o | 50 | 15000 |
+| gpt-5.3-codex | 50 | 15000 |
+| claude-sonnet-4 | 60 | 20000 |
+| deepseek-chat | 40 | 10000 |
+| ollama | 15 | 3000 |
+
+Override in config:
+```yaml
+advanced:
+  proofread_batch_size: 30
+  proofread_context_chars: 10000
+```

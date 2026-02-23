@@ -1,185 +1,283 @@
 # ❓ FAQ
 
-## Installation Issues
+## Installation
 
-### Q: FFmpeg not found?
+### FFmpeg not found?
 
-**A**: Make sure FFmpeg is installed and in PATH:
+Make sure FFmpeg is installed and in PATH:
 
 ```bash
-# Check if installed
+# Check installation
 ffmpeg -version
 
+# Install
 # macOS
 brew install ffmpeg
 
-# Ubuntu
+# Ubuntu/Debian
 sudo apt install ffmpeg
 
-# Windows: Download and add to PATH
+# Windows (PowerShell as admin)
+winget install FFmpeg
 ```
 
 ---
 
-### Q: Error installing faster-whisper?
+### CUDA out of memory?
 
-**A**: Install PyTorch first:
+Your GPU doesn't have enough VRAM for the selected model.
 
-```bash
-# With NVIDIA GPU
-pip install torch --index-url https://download.pytorch.org/whl/cu118
+**Solutions**:
 
-# Without GPU (CPU mode, very slow)
-pip install torch --index-url https://download.pytorch.org/whl/cpu
-
-# Then install faster-whisper
-pip install faster-whisper
-```
-
----
-
-### Q: CUDA out of memory?
-
-**A**: Not enough VRAM. Solutions:
-
-1. **Use a smaller model**:
+1. Use a smaller Whisper model:
    ```yaml
    whisper:
      local_model: "medium"  # or "small"
    ```
 
-2. **Close other GPU-intensive programs**
-
-3. **Use cloud API instead of local**:
+2. Use float32 (uses less VRAM than float16):
    ```yaml
    whisper:
-     provider: "openai"  # or "groq"
+     compute_type: "float32"
    ```
 
----
-
-## Usage Issues
-
-### Q: Transcription not accurate?
-
-**A**: Some improvements:
-
-1. **Use a larger model** (e.g., large-v3)
-2. **Check audio quality** (background noise affects accuracy)
-3. **Try different providers** (OpenAI and Groq may give different results)
-
----
-
-### Q: Translation quality not good?
-
-**A**:
-
-1. **Use a better model**:
+3. Use cloud API instead:
    ```yaml
-   translation:
-     model: "gpt-4o"  # best quality
+   whisper:
+     provider: "groq"  # Free tier available
    ```
 
-2. **Adjust batch size** (give LLM more context):
-   ```yaml
-   advanced:
-     translation_batch_size: 30
-     translation_context_size: 10
-   ```
-
-3. **Use DeepSeek for Chinese translation** (Chinese optimized)
-
 ---
 
-### Q: Subtitle timing is off?
+### GPU crash after transcription (Windows)?
 
-**A**: This is a known issue, planned for optimization in v0.2.0. Workarounds:
+This is a known issue with CTranslate2 on Windows. SubGen automatically keeps the model in memory to prevent crashes.
 
-1. Use professional subtitle editing software (e.g., Aegisub) for fine-tuning
-2. Try local Whisper (timestamps are usually more accurate)
-
----
-
-### Q: How to handle multi-speaker dialogues?
-
-**A**: Speaker diarization is planned for v0.5.0. Currently:
-
-1. Subtitles don't distinguish speakers
-2. You can manually add speaker labels
-
----
-
-## API Issues
-
-### Q: API request failed (401 Unauthorized)?
-
-**A**: API key issue:
-
-1. Check if key is correctly copied (no extra spaces)
-2. Check if key is valid (log into console to verify)
-3. Check if account has balance
-
----
-
-### Q: API request timeout?
-
-**A**:
-
-1. **Check network connection**
-2. **Use a proxy** (if accessing OpenAI from restricted regions):
-   ```yaml
-   translation:
-     base_url: "https://your-proxy.com/v1"
-   ```
-3. **Try a different provider**
-
----
-
-### Q: How to estimate API costs?
-
-**A**: Rough estimates:
-
-- **2-hour movie**:
-  - Whisper API: 120 min × $0.006 = $0.72
-  - GPT-4o-mini translation: ~$0.05
-  - **Total: ~$0.77**
-
-- **Using Groq + local translation**: Nearly free
-
----
-
-## Other Questions
-
-### Q: What video formats are supported?
-
-**A**: All formats FFmpeg can process:
-- Video: MP4, MKV, AVI, MOV, WMV, FLV
-- Audio: MP3, WAV, AAC, FLAC
-
----
-
-### Q: Can I do transcription only without translation?
-
-**A**: Not currently supported. Planning to add `--no-translate` option in future versions.
-
-Workaround: Set target language same as source:
-```bash
-python subgen.py video.mp4 --from en --to en  # English video
+If you still experience crashes, try:
+```yaml
+whisper:
+  compute_type: "float32"
 ```
 
 ---
 
-### Q: How to contribute code?
+### Older NVIDIA GPU (GTX 10xx) not working?
 
-**A**: Welcome! See [CONTRIBUTING.md](../CONTRIBUTING.md)
+Pascal-era GPUs don't support float16. Use float32:
 
-1. Fork the project
-2. Create a feature branch
-3. Submit a Pull Request
+```yaml
+whisper:
+  provider: "local"
+  device: "cuda"
+  compute_type: "float32"
+```
+
+---
+
+## Usage
+
+### What's the difference between translation modes?
+
+| Mode | Command | Quality | Speed |
+|------|---------|---------|-------|
+| Basic | `--to zh` | ★★★☆☆ | Fast |
+| Sentence-aware | `-s --to zh` | ★★★★☆ | Medium |
+| With proofreading | `-s --proofread --to zh` | ★★★★★ | Slower |
+
+**Sentence-aware** (`-s`):
+- Groups subtitle segments into complete sentences
+- Uses word-level timestamps for precise timing
+- LLM decides natural break points
+
+**Proofreading** (`--proofread`):
+- Second AI pass with full story context
+- Reviews all translations for consistency
+- Fixes character names, terminology, tone
+
+---
+
+### How does caching work?
+
+SubGen caches transcription results in `.subgen-cache.json` alongside your video.
+
+```bash
+# First run: transcribes and caches
+python subgen.py run video.mp4 -s --to zh
+
+# Second run: uses cache (instant!)
+python subgen.py run video.mp4 -s --to ja
+
+# Force re-transcription
+python subgen.py run video.mp4 -s --to zh --force-transcribe
+```
+
+Cache includes:
+- Audio transcription
+- Word-level timestamps
+- Translations (after translation step)
+
+---
+
+### Can I proofread existing subtitles?
+
+Yes! Use `--proofread-only`:
+
+```bash
+# First: generate translation
+python subgen.py run video.mp4 -s --to zh
+
+# Later: proofread only (uses cached translations)
+python subgen.py run video.mp4 --proofread-only --to zh
+```
+
+Output: `video_zh.proofread.srt`
+
+---
+
+### Why is dialogue missing when music is loud?
+
+By default, music/noise filtering is disabled. If you previously enabled it:
+
+```yaml
+advanced:
+  filter_music: false      # Disable music filtering
+  validate_segments: false # Disable density filtering
+```
+
+Then re-transcribe:
+```bash
+python subgen.py run video.mp4 -s --to zh --force-transcribe
+```
+
+---
+
+### How to debug translation issues?
+
+Use `--debug` flag:
+
+```bash
+python subgen.py run video.mp4 -s --to zh --debug
+```
+
+Shows:
+- Segment transcription details
+- LLM requests and responses
+- Word-level timestamp mapping
+- Proofreading corrections
+
+---
+
+## Providers
+
+### ChatGPT login not working?
+
+1. Make sure you have ChatGPT Plus or Pro subscription
+2. Try logging out and back in:
+   ```bash
+   python subgen.py auth logout chatgpt
+   python subgen.py auth login chatgpt
+   ```
+3. Clear browser cookies for chatgpt.com
+
+---
+
+### Which ChatGPT model should I use?
+
+| Model | Quality | Speed | Notes |
+|-------|---------|-------|-------|
+| `gpt-5.3-codex` | ★★★★★ | Medium | Has reasoning, best for proofreading |
+| `gpt-5.2-codex` | ★★★★☆ | Medium | Previous version |
+| `gpt-5.1-codex-mini` | ★★★☆☆ | Fast | Less capable |
+
+Configure in `config.yaml`:
+```yaml
+translation:
+  provider: "chatgpt"
+  model: "gpt-5.3-codex"
+```
+
+---
+
+### API request timeout?
+
+**Solutions**:
+
+1. Check network connection
+2. Try a different provider
+3. Use a proxy (if needed for your region):
+   ```yaml
+   translation:
+     base_url: "https://your-proxy.com/v1"
+   ```
+
+---
+
+### How to estimate API costs?
+
+For a 2-hour movie:
+
+| Service | Cost |
+|---------|------|
+| OpenAI Whisper | ~$0.72 (120 min × $0.006) |
+| GPT-4o-mini | ~$0.05 |
+| DeepSeek | ~¥0.1 |
+| ChatGPT/Copilot | $0 (subscription) |
+| Local/MLX/Groq | $0 |
+
+---
+
+## Output
+
+### What subtitle formats are supported?
+
+| Format | Extension | Notes |
+|--------|-----------|-------|
+| SRT | `.srt` | Most universal, all players |
+| ASS | `.ass` | Styling support, fansub standard |
+| VTT | `.vtt` | Web video standard |
+
+Configure:
+```yaml
+output:
+  format: "srt"
+```
+
+---
+
+### Can I get bilingual subtitles?
+
+Yes:
+
+```bash
+python subgen.py run video.mp4 -s --to zh --bilingual
+```
+
+Or in config:
+```yaml
+output:
+  bilingual: true
+```
+
+Output format:
+```
+1
+00:00:01,000 --> 00:00:03,000
+Hello, how are you?
+你好，你怎么样？
+```
+
+---
+
+### What video formats work?
+
+Any format FFmpeg supports:
+- Video: MP4, MKV, AVI, MOV, WMV, FLV, WebM
+- Audio: MP3, WAV, AAC, FLAC, M4A
 
 ---
 
 ## Still have questions?
 
-- Submit a [GitHub Issue](https://github.com/lgezyxr/subgen/issues)
-- Search existing issues for similar problems
+- [GitHub Issues](https://github.com/lgezyxr/subgen/issues)
+- Search existing issues first
+- Include `--debug` output when reporting bugs

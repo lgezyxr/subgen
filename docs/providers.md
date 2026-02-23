@@ -1,25 +1,151 @@
 # 🔑 API Providers Setup
 
-How to get API keys for each service.
+How to set up each provider for SubGen.
 
 ---
 
-## Speech Recognition (Whisper)
+## 🔐 OAuth Providers (No API Key!)
+
+### ChatGPT Plus/Pro (Recommended)
+
+**Cost**: Your existing subscription  
+**Quality**: ⭐⭐⭐⭐⭐ (gpt-5.3-codex has reasoning capabilities)
+
+If you have a ChatGPT Plus ($20/mo) or Pro subscription, you can use it directly!
+
+**Setup**:
+```bash
+python subgen.py auth login chatgpt
+```
+
+A browser window opens → Log in with your OpenAI account → Done!
+
+**Config**:
+```yaml
+translation:
+  provider: "chatgpt"
+  model: "gpt-5.3-codex"  # Best model with reasoning
+```
+
+**Available Models**:
+| Model | Description |
+|-------|-------------|
+| `gpt-5.3-codex` | Best quality, has reasoning (default) |
+| `gpt-5.2-codex` | Previous version |
+| `gpt-5.1-codex-mini` | Faster, less capable |
+
+---
+
+### GitHub Copilot
+
+**Cost**: Your existing subscription  
+**Quality**: ⭐⭐⭐⭐
+
+If you have GitHub Copilot Individual or Business subscription:
+
+**Setup**:
+```bash
+python subgen.py auth login copilot
+```
+
+Follow the device code flow to authenticate.
+
+**Config**:
+```yaml
+translation:
+  provider: "copilot"
+  model: "gpt-4o-mini"
+```
+
+---
+
+## 🔊 Speech Recognition (Whisper)
+
+### Local (faster-whisper)
+
+**Cost**: Free  
+**Requirements**: NVIDIA GPU with 4GB+ VRAM, CUDA installed
+
+```bash
+pip install faster-whisper
+```
+
+**Config**:
+```yaml
+whisper:
+  provider: "local"
+  device: "cuda"
+  local_model: "large-v3"
+```
+
+**VRAM Requirements**:
+| Model | VRAM | Accuracy |
+|-------|------|----------|
+| tiny | ~1GB | ★★☆☆☆ |
+| base | ~1GB | ★★★☆☆ |
+| small | ~2GB | ★★★★☆ |
+| medium | ~5GB | ★★★★☆ |
+| large-v3 | ~10GB | ★★★★★ |
+
+**Older GPUs (GTX 10xx series)**:
+```yaml
+whisper:
+  provider: "local"
+  device: "cuda"
+  compute_type: "float32"  # Required for Pascal GPUs
+```
+
+---
+
+### MLX (Apple Silicon)
+
+**Cost**: Free  
+**Requirements**: M1/M2/M3 Mac
+
+```bash
+pip install mlx-whisper
+```
+
+**Config**:
+```yaml
+whisper:
+  provider: "mlx"
+  local_model: "large-v3"
+```
+
+**Recommended for all Apple Silicon Macs** - native performance, no cloud needed.
+
+---
+
+### Groq API
+
+**Cost**: Free tier available, then pay-as-you-go  
+**Speed**: ⭐⭐⭐⭐⭐ (extremely fast)
+
+1. Visit [Groq Console](https://console.groq.com/)
+2. Sign up (Google login supported)
+3. Go to [API Keys](https://console.groq.com/keys)
+4. Create API Key (starts with `gsk_`)
+
+**Config**:
+```yaml
+whisper:
+  provider: "groq"
+  groq_key: "gsk_..."
+```
+
+---
 
 ### OpenAI Whisper API
 
-**Recommendation**: ⭐⭐⭐⭐⭐ (Most stable)
+**Cost**: $0.006/minute (~$0.72 for 2-hour movie)  
+**Stability**: ⭐⭐⭐⭐⭐
 
-**Price**: $0.006/minute (2-hour movie ≈ $0.72)
-
-**Steps**:
 1. Visit [OpenAI Platform](https://platform.openai.com/)
-2. Sign up / Log in
-3. Go to [API Keys](https://platform.openai.com/api-keys) page
-4. Click "Create new secret key"
-5. Copy the key (starts with `sk-`)
+2. Go to [API Keys](https://platform.openai.com/api-keys)
+3. Create new secret key (starts with `sk-`)
 
-**Configuration**:
+**Config**:
 ```yaml
 whisper:
   provider: "openai"
@@ -28,127 +154,17 @@ whisper:
 
 ---
 
-### Groq API
-
-**Recommendation**: ⭐⭐⭐⭐⭐ (Free tier + super fast)
-
-**Price**: Free tier available, pay-as-you-go after
-
-**Steps**:
-1. Visit [Groq Console](https://console.groq.com/)
-2. Sign up (Google login supported)
-3. Go to [API Keys](https://console.groq.com/keys) page
-4. Click "Create API Key"
-5. Copy the key (starts with `gsk_`)
-
-**Configuration**:
-```yaml
-whisper:
-  provider: "groq"
-  groq_key: "gsk_..."
-```
-
-**Features**:
-- Extremely fast (2-hour movie in tens of seconds)
-- Free tier available, great for trying out
-- Uses whisper-large-v3 model
-
----
-
-### Local Whisper (faster-whisper)
-
-**Recommendation**: ⭐⭐⭐⭐ (Free, requires GPU)
-
-**Price**: Free
-
-**Requirements**:
-- NVIDIA GPU (4GB+ VRAM)
-- CUDA installed
-
-**Installation**:
-```bash
-pip install faster-whisper torch
-```
-
-**Configuration**:
-```yaml
-whisper:
-  provider: "local"
-  local_model: "large-v3"  # or medium/small
-  device: "cuda"
-```
-
-**VRAM Requirements**:
-
-| Model | VRAM | Quality |
-|-------|------|---------|
-| tiny | ~1GB | Basic |
-| base | ~1GB | Fair |
-| small | ~2GB | Good |
-| medium | ~5GB | Better |
-| large-v3 | ~10GB | Best |
-
----
-
-## Translation (LLM)
-
-### OpenAI GPT
-
-**Recommendation**: ⭐⭐⭐⭐⭐
-
-**Price**:
-- gpt-4o-mini: ~$0.15/M input tokens (recommended)
-- gpt-4o: ~$2.5/M input tokens (best quality)
-
-**Steps**: Same as OpenAI Whisper API
-
-**Configuration**:
-```yaml
-translation:
-  provider: "openai"
-  model: "gpt-4o-mini"  # or gpt-4o
-  api_key: "sk-..."
-```
-
----
-
-### Anthropic Claude
-
-**Recommendation**: ⭐⭐⭐⭐
-
-**Price**:
-- claude-3-haiku: ~$0.25/M input tokens
-- claude-3-sonnet: ~$3/M input tokens
-
-**Steps**:
-1. Visit [Anthropic Console](https://console.anthropic.com/)
-2. Sign up
-3. Go to [API Keys](https://console.anthropic.com/settings/keys) page
-4. Create new key
-
-**Configuration**:
-```yaml
-translation:
-  provider: "claude"
-  model: "claude-3-haiku-20240307"
-  api_key: "sk-ant-..."
-```
-
----
+## 🌍 Translation (LLM)
 
 ### DeepSeek
 
-**Recommendation**: ⭐⭐⭐⭐⭐ (Best for Chinese translation)
+**Cost**: ~¥1/M tokens (very cheap)  
+**Best for**: Chinese translation
 
-**Price**: ~¥1/M tokens (very cheap)
-
-**Steps**:
 1. Visit [DeepSeek Platform](https://platform.deepseek.com/)
-2. Sign up
-3. Go to API Keys page
-4. Create new key
+2. Sign up and get API key
 
-**Configuration**:
+**Config**:
 ```yaml
 translation:
   provider: "deepseek"
@@ -156,69 +172,117 @@ translation:
   api_key: "sk-..."
 ```
 
-**Features**:
-- Excellent Chinese output
-- Very low cost
-- OpenAI-compatible API
+---
+
+### OpenAI API
+
+**Cost**: gpt-4o-mini ~$0.15/M tokens, gpt-4o ~$2.5/M tokens
+
+Same API key as Whisper.
+
+**Config**:
+```yaml
+translation:
+  provider: "openai"
+  model: "gpt-4o-mini"  # or "gpt-4o" for best quality
+  api_key: "sk-..."
+```
+
+---
+
+### Anthropic Claude
+
+**Cost**: claude-3-haiku ~$0.25/M tokens, claude-3-sonnet ~$3/M tokens
+
+1. Visit [Anthropic Console](https://console.anthropic.com/)
+2. Go to [API Keys](https://console.anthropic.com/settings/keys)
+3. Create new key (starts with `sk-ant-`)
+
+**Config**:
+```yaml
+translation:
+  provider: "claude"
+  model: "claude-sonnet-4-20250514"
+  api_key: "sk-ant-..."
+```
 
 ---
 
 ### Ollama (Local LLM)
 
-**Recommendation**: ⭐⭐⭐⭐ (Completely free)
+**Cost**: Free  
+**Requirements**: 8-16GB+ VRAM
 
-**Price**: Free
+1. Install Ollama:
+   ```bash
+   # macOS/Linux
+   curl -fsSL https://ollama.com/install.sh | sh
+   
+   # Windows: download from ollama.com
+   ```
 
-**Requirements**:
-- 16GB+ VRAM (14B model)
-- 8GB+ VRAM (7B model)
+2. Download a model:
+   ```bash
+   ollama pull qwen2.5:14b   # Chinese optimized
+   ollama pull llama3:8b     # General purpose
+   ```
 
-**Installation**:
-```bash
-# macOS/Linux
-curl -fsSL https://ollama.com/install.sh | sh
-
-# Download model
-ollama pull qwen2.5:14b
-```
-
-**Configuration**:
+**Config**:
 ```yaml
 translation:
   provider: "ollama"
-  ollama_host: "http://localhost:11434"
-  ollama_model: "qwen2.5:14b"
+  model: "qwen2.5:14b"
+  ollama_url: "http://localhost:11434"
 ```
 
-**Recommended Models**:
-
-| Model | VRAM | Chinese Quality |
-|-------|------|-----------------|
-| qwen2.5:7b | ~8GB | Good |
-| qwen2.5:14b | ~16GB | Very good |
-| llama3:8b | ~8GB | Fair |
-
 ---
 
-## Cost Comparison
+## 💰 Cost Comparison
 
-Translating a 2-hour movie:
+For a 2-hour movie:
 
-| Setup | Whisper Cost | Translation Cost | Total |
-|-------|--------------|------------------|-------|
-| OpenAI + GPT-4o-mini | $0.72 | ~$0.05 | **~$0.77** |
-| Groq + GPT-4o-mini | Free tier | ~$0.05 | **~$0.05** |
+| Setup | Whisper | Translation | Total |
+|-------|---------|-------------|-------|
+| Local + ChatGPT | Free | Subscription | **$0** |
+| Groq + ChatGPT | Free | Subscription | **$0** |
 | Local + DeepSeek | Free | ~¥0.1 | **~¥0.1** |
-| Local + Ollama | Free | Free | **Free** |
+| Local + Ollama | Free | Free | **$0** |
+| OpenAI + GPT-4o-mini | $0.72 | ~$0.05 | **~$0.77** |
 
 ---
 
-## Recommended Combinations
+## 🏆 Recommended Setups
 
-| Use Case | Whisper | Translation | Reason |
-|----------|---------|-------------|--------|
-| First-time user | Groq | GPT-4o-mini | Free + cheap |
-| Daily use | Local | GPT-4o-mini | Low cost |
-| Quality focus | Local | GPT-4o | Best translation |
-| Completely free | Local | Ollama | Zero cost |
-| Chinese optimized | Local | DeepSeek | Great Chinese output |
+### Best Quality
+```yaml
+whisper:
+  provider: "local"  # or "mlx"
+translation:
+  provider: "chatgpt"
+  model: "gpt-5.3-codex"
+```
+
+### Best Value
+```yaml
+whisper:
+  provider: "groq"
+translation:
+  provider: "deepseek"
+```
+
+### Fully Offline
+```yaml
+whisper:
+  provider: "local"
+translation:
+  provider: "ollama"
+  model: "qwen2.5:14b"
+```
+
+### Apple Silicon
+```yaml
+whisper:
+  provider: "mlx"
+translation:
+  provider: "chatgpt"
+```
