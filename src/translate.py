@@ -1092,7 +1092,7 @@ def _translate_copilot(
     # Get model from config (default to claude-sonnet-4 for Copilot)
     model = config.get('translation', {}).get('model', 'claude-sonnet-4')
     debug("copilot: using model=%s, texts=%d", model, len(texts))
-    
+
     response = requests.post(
         "https://api.githubcopilot.com/chat/completions",
         headers={

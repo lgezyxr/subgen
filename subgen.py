@@ -68,7 +68,7 @@ def run(input_path, output, source_lang, target_lang, no_translate, sentence_awa
 
         # Generate bilingual subtitles
         subgen run movie.mp4 --from en --to zh --bilingual
-        
+
         # Force re-transcription (ignore cache)
         subgen run movie.mp4 --to zh --force-transcribe
     """
@@ -76,7 +76,7 @@ def run(input_path, output, source_lang, target_lang, no_translate, sentence_awa
     if debug:
         from src.logger import set_debug
         set_debug(True)
-    
+
     run_subtitle_generation(
         input_path, output, source_lang, target_lang, no_translate, sentence_aware, proofread, proofread_only,
         bilingual, whisper_provider, llm_provider, embed, config, force_transcribe, verbose
@@ -204,23 +204,23 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
     audio_path = None
     video_output = None
     cached_transcription = None
-    
+
     # Handle proofread-only mode
     if proofread_only:
         from src.subtitle import load_srt, generate_subtitle
         from src.translate import proofread_translations
         from src.transcribe import Segment, Word
         from src.cache import load_cache
-        
+
         segments = None
-        
+
         # First try to load from cache (has both original + translated)
         cached = load_cache(input_path)
         if cached and cached.get('segments'):
             # Check if cache has translations
             has_translations = any(seg.get('translated') for seg in cached['segments'])
             if has_translations:
-                console.print(f"[green]📂 Loading from cache (with translations)[/green]")
+                console.print("[green]📂 Loading from cache (with translations)[/green]")
                 segments = []
                 for seg_data in cached['segments']:
                     seg = Segment(
@@ -239,28 +239,28 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                         ]
                     segments.append(seg)
                 console.print(f"   Loaded {len(segments)} segments with translations")
-        
+
         # If no cache with translations, try .srt file
         if not segments:
             existing_srt = input_path.parent / f"{input_path.stem}_{final_target_lang}.srt"
             if not existing_srt.exists():
                 existing_srt = input_path.with_suffix('.srt')
-            
+
             if existing_srt.exists():
-                console.print(f"[yellow]⚠️  Loading from .srt (no original text for context)[/yellow]")
+                console.print("[yellow]⚠️  Loading from .srt (no original text for context)[/yellow]")
                 console.print(f"   File: {existing_srt.name}")
                 segments = load_srt(existing_srt)
                 console.print(f"   Loaded {len(segments)} segments")
-                console.print(f"   [dim]Note: Proofreading without original text is less effective[/dim]")
+                console.print("   [dim]Note: Proofreading without original text is less effective[/dim]")
             else:
-                console.print(f"[red]Error: No cache or subtitle file found[/red]")
-                console.print(f"[dim]Run translation first: subgen run video.mp4 -s --to zh[/dim]")
+                console.print("[red]Error: No cache or subtitle file found[/red]")
+                console.print("[dim]Run translation first: subgen run video.mp4 -s --to zh[/dim]")
                 raise SystemExit(1)
-        
+
         console.print()
-        
+
         console.print(f"[dim]Proofreading {len(segments)} segments with provider: {cfg.get('translation', {}).get('provider', 'openai')}[/dim]")
-        
+
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
@@ -276,42 +276,42 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
             )
             progress.update(task, description="[green]✓ Proofreading complete")
             progress.stop_task(task)
-            
+
             # Generate new subtitle file
             task2 = progress.add_task("[cyan]Generating subtitles...", total=None)
             generate_subtitle(segments, output_path, cfg)
             progress.update(task2, description="[green]✓ Subtitles generated")
             progress.stop_task(task2)
-        
-        console.print(f"\n[bold green]✅ Done![/bold green]")
+
+        console.print("\n[bold green]✅ Done![/bold green]")
         console.print(f"Subtitle file: [cyan]{output_path}[/cyan]")
         return
-    
+
     # Check for cached transcription
     if not force_transcribe:
         cached_transcription = load_cache(input_path)
         if cached_transcription:
             cache_info = format_cache_info(cached_transcription)
-            console.print(f"[green]📂 Found cached transcription[/green]")
+            console.print("[green]📂 Found cached transcription[/green]")
             console.print(f"   {cache_info}")
-            console.print(f"   [dim]Use --force-transcribe to re-process[/dim]")
+            console.print("   [dim]Use --force-transcribe to re-process[/dim]")
             console.print()
 
     # Check for embedded subtitles (skip if using cache)
     embedded_subtitle_path = None
     use_embedded = False
-    
+
     if not cached_transcription and not force_transcribe:
         from src.embedded import check_embedded_subtitles, extract_subtitle_track
-        
+
         embed_check = check_embedded_subtitles(input_path, final_source_lang, final_target_lang)
-        
+
         if embed_check['tracks']:
             track_list = ", ".join([
                 f"{t.language or 'und'}({t.codec})" for t in embed_check['tracks']
             ])
             console.print(f"[green]📀 Found embedded subtitles: {track_list}[/green]")
-        
+
         if embed_check['action'] == 'use_target':
             # Target language already exists - just extract it
             console.print(f"   [bold green]✓ Target language ({final_target_lang}) already exists![/bold green]")
@@ -322,7 +322,7 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                 # Copy to output path
                 import shutil
                 shutil.copy(result, output_path)
-                console.print(f"\n[bold green]✅ Done![/bold green]")
+                console.print("\n[bold green]✅ Done![/bold green]")
                 console.print(f"Subtitle file: [cyan]{output_path}[/cyan]")
                 console.print(f"[dim]Extracted from embedded {track.language} subtitle[/dim]")
                 # Clean up temp file
@@ -330,8 +330,8 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                     extracted_path.unlink(missing_ok=True)
                 return
             else:
-                console.print(f"   [yellow]⚠️  Failed to extract, falling back to Whisper[/yellow]")
-        
+                console.print("   [yellow]⚠️  Failed to extract, falling back to Whisper[/yellow]")
+
         elif embed_check['action'] == 'use_source':
             # Use embedded subtitle as source for translation
             track = embed_check['track']
@@ -345,9 +345,9 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                     cfg['output']['source_language'] = track.language
                     final_source_lang = track.language
             else:
-                console.print(f"   [yellow]⚠️  Failed to extract, falling back to Whisper[/yellow]")
+                console.print("   [yellow]⚠️  Failed to extract, falling back to Whisper[/yellow]")
                 embedded_subtitle_path = None
-        
+
         console.print()
 
     try:
@@ -370,7 +370,7 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                 # Use cached transcription
                 task_cache = progress.add_task("[green]✓ Using cached transcription", total=None)
                 progress.stop_task(task_cache)
-                
+
                 # Convert cached segments back to Segment objects
                 from src.transcribe import Segment, Word
                 segments = []
@@ -391,18 +391,18 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                             for w in seg_data['words']
                         ]
                     segments.append(seg)
-                
+
                 # Update source language from cache if not specified
                 if not source_lang and cached_transcription.get('source_lang'):
                     cfg['whisper']['source_language'] = cached_transcription['source_lang']
                     cfg['output']['source_language'] = cached_transcription['source_lang']
-            
+
             elif use_embedded and embedded_subtitle_path:
                 # Use embedded subtitle as source
                 task_embed = progress.add_task("[cyan]Loading embedded subtitle...", total=None)
                 from src.subtitle import load_srt
                 from src.transcribe import Segment
-                
+
                 srt_segments = load_srt(embedded_subtitle_path)
                 # Convert to our Segment format
                 segments = []
@@ -415,15 +415,15 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                         no_speech_prob=0.0,
                         avg_logprob=0.0
                     ))
-                
+
                 complete_task(task_embed, f"[green]✓ Loaded embedded subtitle ({len(segments)} segments)")
-                
+
                 # Clean up temp file
                 try:
                     embedded_subtitle_path.unlink(missing_ok=True)
                 except Exception:
                     pass
-                
+
                 # Save to cache for future runs
                 try:
                     segments_data = [{
@@ -433,7 +433,7 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                         'no_speech_prob': 0.0,
                         'avg_logprob': 0.0
                     } for seg in segments]
-                    
+
                     save_cache(
                         video_path=input_path,
                         segments=segments_data,
@@ -445,7 +445,7 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                 except Exception as e:
                     from src.logger import debug as log_debug
                     log_debug("Failed to cache embedded subtitle: %s", e)
-            
+
             else:
                 # Step 1: Extract audio
                 task1 = progress.add_task("[cyan]Extracting audio...", total=None)
@@ -455,19 +455,19 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                 # Step 2: Speech recognition
                 task2 = progress.add_task("[cyan]Transcribing...", total=None)
                 segments = transcribe_audio(audio_path, cfg)
-                
+
                 from src.logger import debug as log_debug
                 log_debug("main: transcribe_audio returned %d segments", len(segments) if segments else 0)
-                
+
                 if not segments:
                     complete_task(task2, "[yellow]⚠ No speech detected")
                     console.print("\n[yellow]Warning: No speech detected in video[/yellow]")
                     raise SystemExit(0)
-                
+
                 log_debug("main: updating progress bar...")
                 complete_task(task2, f"[green]✓ Transcribed ({len(segments)} segments)")
                 log_debug("main: progress bar updated")
-                
+
                 # Save transcription to cache
                 log_debug("main: starting cache save...")
                 try:
@@ -488,9 +488,9 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                                 for w in seg.words
                             ]
                         segments_data.append(seg_dict)
-                    
+
                     log_debug("main: converted %d segments to dicts", len(segments_data))
-                    
+
                     save_cache(
                         video_path=input_path,
                         segments=segments_data,
@@ -517,7 +517,7 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                 progress.add_task("[dim]Skipping translation...", total=None)
             else:
                 task3 = progress.add_task("[cyan]Translating...", total=len(segments))
-                
+
                 if sentence_aware:
                     # Use sentence-aware translation
                     translated_segments = translate_segments_sentence_aware(
@@ -534,7 +534,7 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                         progress_callback=lambda n: progress.update(task3, advance=n)
                     )
                 complete_task(task3, "[green]✓ Translation complete")
-                
+
                 # Save cache with translations for later proofreading
                 try:
                     from src.logger import debug as log_debug
@@ -555,7 +555,7 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                                 for w in seg.words
                             ]
                         segments_data.append(seg_dict)
-                    
+
                     save_cache(
                         video_path=input_path,
                         segments=segments_data,
@@ -565,9 +565,9 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                         source_lang=cfg['whisper'].get('source_language', 'auto')
                     )
                     log_debug("main: cache updated with translations")
-                except Exception as e:
+                except Exception:
                     pass  # Cache update failure is not fatal
-                
+
                 # Step 3.5: Proofreading (optional)
                 if proofread:
                     task_proof = progress.add_task("[cyan]Proofreading...", total=len(translated_segments))
