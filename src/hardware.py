@@ -23,7 +23,7 @@ def detect_hardware() -> HardwareInfo:
     """Detect system hardware capabilities."""
     system = platform.system().lower()
     arch = platform.machine().lower()
-    
+
     # Normalize platform names
     if system == "darwin":
         plat = "darwin"
@@ -31,17 +31,17 @@ def detect_hardware() -> HardwareInfo:
         plat = "windows"
     else:
         plat = "linux"
-    
+
     # Check Apple Silicon
     is_apple_silicon = (plat == "darwin" and arch == "arm64")
-    
+
     # Check NVIDIA GPU
     has_nvidia = False
     gpu_name = None
     vram_gb = None
     has_cuda = False
     cuda_version = None
-    
+
     if not is_apple_silicon:
         # Try nvidia-smi
         try:
@@ -60,7 +60,7 @@ def detect_hardware() -> HardwareInfo:
                     has_nvidia = True
         except (FileNotFoundError, subprocess.TimeoutExpired, ValueError):
             pass
-        
+
         # Check CUDA via PyTorch
         try:
             import torch
@@ -75,7 +75,7 @@ def detect_hardware() -> HardwareInfo:
                 has_nvidia = True
         except ImportError:
             pass
-    
+
     return HardwareInfo(
         platform=plat,
         arch=arch,
@@ -91,14 +91,14 @@ def detect_hardware() -> HardwareInfo:
 def recommend_whisper_config(hw: HardwareInfo) -> Tuple[str, str, str]:
     """
     Recommend optimal Whisper configuration based on hardware.
-    
+
     Returns:
         Tuple of (provider, device, model)
     """
     # Apple Silicon: MLX is best
     if hw.is_apple_silicon:
         return ("mlx", "cpu", "large-v3")
-    
+
     # NVIDIA GPU with CUDA
     if hw.has_nvidia_gpu and hw.has_cuda:
         # Choose model based on VRAM
@@ -113,14 +113,14 @@ def recommend_whisper_config(hw: HardwareInfo) -> Tuple[str, str, str]:
                 model = "base"
         else:
             model = "medium"  # Safe default
-        
+
         return ("local", "cuda", model)
-    
+
     # NVIDIA GPU but no CUDA installed
     if hw.has_nvidia_gpu and not hw.has_cuda:
         # Suggest installing CUDA, but default to cloud
         return ("groq", "cpu", "whisper-large-v3")
-    
+
     # No GPU: recommend cloud API
     return ("groq", "cpu", "whisper-large-v3")
 
@@ -133,7 +133,7 @@ def get_install_instructions(hw: HardwareInfo) -> Optional[str]:
             return None
         except ImportError:
             return "pip install mlx-whisper"
-    
+
     if hw.has_nvidia_gpu:
         if not hw.has_cuda:
             if hw.platform == "windows":
@@ -154,30 +154,30 @@ def get_install_instructions(hw: HardwareInfo) -> Optional[str]:
                 return None
             except ImportError:
                 return "pip install faster-whisper"
-    
+
     return None
 
 
 def print_hardware_summary(hw: HardwareInfo) -> None:
     """Print a summary of detected hardware."""
-    print(f"\n🔍 Hardware Detection")
+    print("\n🔍 Hardware Detection")
     print(f"   Platform: {hw.platform} ({hw.arch})")
-    
+
     if hw.is_apple_silicon:
-        print(f"   Apple Silicon: ✅ Detected")
-        print(f"   Recommended: MLX Whisper (fast, native)")
+        print("   Apple Silicon: ✅ Detected")
+        print("   Recommended: MLX Whisper (fast, native)")
     elif hw.has_nvidia_gpu:
         print(f"   NVIDIA GPU: ✅ {hw.nvidia_gpu_name}")
         if hw.nvidia_vram_gb:
             print(f"   VRAM: {hw.nvidia_vram_gb:.1f} GB")
         if hw.has_cuda:
             print(f"   CUDA: ✅ {hw.cuda_version}")
-            print(f"   Recommended: faster-whisper (local, fast)")
+            print("   Recommended: faster-whisper (local, fast)")
         else:
-            print(f"   CUDA: ❌ Not installed")
-            print(f"   Recommended: Install CUDA for local processing")
+            print("   CUDA: ❌ Not installed")
+            print("   Recommended: Install CUDA for local processing")
     else:
-        print(f"   GPU: ❌ Not detected")
-        print(f"   Recommended: Cloud API (Groq is free and fast)")
-    
+        print("   GPU: ❌ Not detected")
+        print("   Recommended: Cloud API (Groq is free and fast)")
+
     print()

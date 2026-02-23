@@ -40,7 +40,7 @@ def save_cache(
 ) -> Path:
     """
     Save transcription results to cache.
-    
+
     Args:
         video_path: Path to the source video file
         segments: Transcription segments from Whisper
@@ -48,13 +48,13 @@ def save_cache(
         whisper_provider: Provider used (local, mlx, openai, groq)
         whisper_model: Model used (large-v3, etc.)
         source_lang: Detected/specified source language
-        
+
     Returns:
         Path to the cache file
     """
     cache_path = get_cache_path(video_path)
     metadata = get_file_metadata(video_path)
-    
+
     cache_data = {
         "version": CACHE_VERSION,
         "source_file": video_path.name,
@@ -68,10 +68,10 @@ def save_cache(
         "segments": segments,
         "word_segments": word_segments,
     }
-    
+
     with open(cache_path, 'w', encoding='utf-8') as f:
         json.dump(cache_data, f, ensure_ascii=False, indent=2)
-    
+
     debug("cache: saved %d segments to %s", len(segments), cache_path)
     return cache_path
 
@@ -79,33 +79,33 @@ def save_cache(
 def load_cache(video_path: Path, strict: bool = True) -> Optional[Dict[str, Any]]:
     """
     Load and validate cached transcription.
-    
+
     Args:
         video_path: Path to the source video file
         strict: If True, validate file size and mtime match
-        
+
     Returns:
         Cache data dict if valid, None otherwise
     """
     cache_path = get_cache_path(video_path)
-    
+
     if not cache_path.exists():
         debug("cache: no cache file found at %s", cache_path)
         return None
-    
+
     try:
         with open(cache_path, 'r', encoding='utf-8') as f:
             cache_data = json.load(f)
     except (json.JSONDecodeError, IOError) as e:
         debug("cache: failed to read cache file: %s", e)
         return None
-    
+
     # Version check
     if cache_data.get("version") != CACHE_VERSION:
-        debug("cache: version mismatch (got %s, expected %s)", 
+        debug("cache: version mismatch (got %s, expected %s)",
               cache_data.get("version"), CACHE_VERSION)
         return None
-    
+
     # File validation
     if strict:
         try:
@@ -113,25 +113,25 @@ def load_cache(video_path: Path, strict: bool = True) -> Optional[Dict[str, Any]
         except FileNotFoundError:
             debug("cache: source file not found")
             return None
-        
+
         if cache_data.get("file_size") != metadata["file_size"]:
             debug("cache: file size mismatch")
             return None
-        
+
         # Allow 1 second tolerance for mtime (filesystem precision varies)
         cached_mtime = cache_data.get("file_mtime", 0)
         if abs(cached_mtime - metadata["file_mtime"]) > 1.0:
-            debug("cache: file mtime mismatch (cached=%.1f, actual=%.1f)", 
+            debug("cache: file mtime mismatch (cached=%.1f, actual=%.1f)",
                   cached_mtime, metadata["file_mtime"])
             return None
-    
+
     # Validate required fields
     required_fields = ["segments", "source_lang", "whisper_provider"]
     for field in required_fields:
         if field not in cache_data:
             debug("cache: missing required field: %s", field)
             return None
-    
+
     debug("cache: loaded valid cache with %d segments", len(cache_data["segments"]))
     return cache_data
 
@@ -140,7 +140,7 @@ def format_cache_info(cache_data: Dict[str, Any]) -> str:
     """Format cache info for display."""
     created_at = cache_data.get("created_at", 0)
     age_seconds = time.time() - created_at
-    
+
     if age_seconds < 60:
         age_str = f"{int(age_seconds)} sec ago"
     elif age_seconds < 3600:
@@ -149,12 +149,12 @@ def format_cache_info(cache_data: Dict[str, Any]) -> str:
         age_str = f"{int(age_seconds / 3600)} hours ago"
     else:
         age_str = f"{int(age_seconds / 86400)} days ago"
-    
+
     provider = cache_data.get("whisper_provider", "unknown")
     model = cache_data.get("whisper_model", "unknown")
     lang = cache_data.get("source_lang", "unknown")
     segments = cache_data.get("segment_count", len(cache_data.get("segments", [])))
-    
+
     return f"Whisper: {provider}/{model}, Language: {lang}, {segments} segments ({age_str})"
 
 

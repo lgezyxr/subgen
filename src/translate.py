@@ -241,10 +241,10 @@ def translate_segments(
                 max_chars,
                 config
             )
-            
+
             # Check for error messages in translation response
             translations = _validate_translations(translations, batch_texts)
-            
+
         except Exception as e:
             # On translation failure, keep original text
             print(f"Translation batch failed: {e}")
@@ -271,7 +271,7 @@ def translate_segments(
 def _validate_translations(translations: List[str], originals: List[str]) -> List[str]:
     """
     Validate translations and detect error messages.
-    
+
     If a translation looks like an error message from the LLM,
     fall back to keeping the original text.
     """
@@ -281,7 +281,7 @@ def _validate_translations(translations: List[str], originals: List[str]) -> Lis
         "sorry", "cannot", "unable", "too long", "exceeds",
         "I cannot", "I'm unable", "I apologize"
     ]
-    
+
     result = []
     for i, trans in enumerate(translations):
         # Check if translation looks like an error message
@@ -292,7 +292,7 @@ def _validate_translations(translations: List[str], originals: List[str]) -> Lis
                 if pattern.lower() in trans_lower:
                     is_error = True
                     break
-        
+
         if is_error:
             # Keep original text if translation is an error message
             from .logger import debug
@@ -300,44 +300,44 @@ def _validate_translations(translations: List[str], originals: List[str]) -> Lis
             result.append(originals[i] if i < len(originals) else "")
         else:
             result.append(trans)
-    
+
     return result
 
 
 def _group_segments_by_sentence(segments: List[Segment], max_group_size: int = 10) -> List[List[Segment]]:
     """
     Group segments by sentence boundaries.
-    
+
     Segments not ending with sentence-ending punctuation are grouped
     with following segments until a sentence end is found.
-    
+
     Args:
         segments: List of segments to group
         max_group_size: Maximum segments per group (prevents runaway grouping)
-    
+
     Returns:
         List of segment groups, where each group forms a complete sentence
     """
     import re
     sentence_end = re.compile(r'[.!?。！？…][\s"\'）\)]*$')
-    
+
     groups = []
     current_group = []
-    
+
     for seg in segments:
         current_group.append(seg)
         text = seg.text.strip()
-        
+
         # Check if this segment ends a sentence OR group is too large
         if sentence_end.search(text) or not text or len(current_group) >= max_group_size:
             if current_group:
                 groups.append(current_group)
                 current_group = []
-    
+
     # Don't forget remaining segments
     if current_group:
         groups.append(current_group)
-    
+
     return groups
 
 
@@ -349,23 +349,22 @@ def translate_segments_sentence_aware(
 ) -> List[Segment]:
     """
     Translate segments with sentence awareness and word-level alignment.
-    
+
     If word-level timestamps are available, uses them to create precise
     subtitle timing based on LLM semantic understanding.
     """
-    from .transcribe import Segment, Word
     from .logger import debug, debug_segments
-    
+
     if not segments:
         return segments
-    
+
     source_lang = config.get('output', {}).get('source_language', 'auto')
     target_lang = config.get('output', {}).get('target_language', 'zh')
     max_chars = config.get('output', {}).get('max_chars_per_line', 40)
-    
+
     debug("sentence_aware: source=%s, target=%s, max_chars=%d", source_lang, target_lang, max_chars)
     debug_segments("sentence_aware input", segments)
-    
+
     # Get translate function if not provided
     if translate_fn is None:
         provider = config.get('translation', {}).get('provider', 'openai')
@@ -384,28 +383,28 @@ def translate_segments_sentence_aware(
             translate_fn = _translate_chatgpt
         else:
             raise ValueError(f"Unsupported translation provider: {provider}")
-    
+
     # Check if we have word-level timestamps
     has_word_timestamps = any(seg.words for seg in segments)
     debug("sentence_aware: has_word_timestamps=%s", has_word_timestamps)
-    
+
     # Group segments by sentence
     groups = _group_segments_by_sentence(segments)
     debug("sentence_aware: %d groups from %d segments", len(groups), len(segments))
-    
+
     translated_segments = []
-    
+
     for i, group in enumerate(groups):
         debug("sentence_aware: processing group %d/%d with %d segments", i+1, len(groups), len(group))
-        
+
         # Collect all words from this sentence group
         all_words = []
         for seg in group:
             if seg.words:
                 all_words.extend(seg.words)
-        
+
         debug("sentence_aware: group %d has %d words", i+1, len(all_words))
-        
+
         # Use word-aligned translation if we have word data
         if has_word_timestamps and all_words:
             try:
@@ -422,13 +421,13 @@ def translate_segments_sentence_aware(
                     try:
                         translations = translate_fn([seg.text], source_lang, target_lang, max_chars, config)
                         seg.translated = translations[0] if translations else seg.text
-                    except:
+                    except Exception:
                         seg.translated = seg.text
                     translated_segments.append(seg)
         else:
             # No word timestamps - use legacy approach
             num_parts = len(group)
-            
+
             if num_parts == 1:
                 seg = group[0]
                 try:
@@ -447,7 +446,7 @@ def translate_segments_sentence_aware(
                     max_chars=max_chars,
                     sentence=merged_text
                 )
-                
+
                 try:
                     translations = _translate_sentence_group(prompt, num_parts, config)
                     for idx, seg in enumerate(group):
@@ -461,10 +460,10 @@ def translate_segments_sentence_aware(
                     for seg in group:
                         seg.translated = seg.text
                         translated_segments.append(seg)
-        
+
         if progress_callback:
             progress_callback(len(group))
-    
+
     return translated_segments
 
 
@@ -478,25 +477,25 @@ def _translate_with_word_alignment(
 ) -> List[Segment]:
     """
     Translate a sentence group using word-level alignment.
-    
+
     LLM decides how to split the translation and indicates which word position
     each segment should end at. We then create segments with precise timestamps.
     """
-    from .transcribe import Segment, Word
+    from .transcribe import Segment
     from .logger import debug
-    
+
     # Build words with positions string
     words_with_positions = " ".join(
         f"[{i}]{w.text}" for i, w in enumerate(all_words)
     )
-    
+
     debug("word_alignment: input words: %s", words_with_positions[:200])
-    
+
     # Calculate reasonable segment count range
     total_words = len(all_words)
     min_segments = 1
     max_segments = max(1, total_words // 3)  # Roughly 3+ words per segment
-    
+
     prompt = WORD_ALIGNED_TRANSLATION_PROMPT.format(
         source_lang=_get_lang_name(source_lang),
         target_lang=_get_lang_name(target_lang),
@@ -505,68 +504,68 @@ def _translate_with_word_alignment(
         max_segments=max_segments,
         max_chars=max_chars
     )
-    
+
     debug("word_alignment: calling LLM with max_segments=%d", max_segments)
-    
+
     # Call LLM
     result = _translate_sentence_group(prompt, max_segments, config)
-    
+
     debug("word_alignment: LLM returned %d lines: %s", len(result), result)
-    
+
     # Parse result: "translated text | end: N"
     new_segments = []
     prev_end_idx = -1
-    
+
     for line in result:
         line = line.strip()
         if not line:
             continue
-        
+
         debug("word_alignment: parsing line: %s", line)
-        
+
         # Parse "text | end: N" format
         if "|" in line and "end:" in line.lower():
             parts = line.rsplit("|", 1)
             text = parts[0].strip()
             end_part = parts[1].lower()
-            
+
             # Extract end position
             import re
             match = re.search(r'end:\s*(\d+)', end_part)
             if match:
                 end_idx = int(match.group(1))
-                
+
                 # Clamp to valid range
                 end_idx = min(end_idx, len(all_words) - 1)
                 end_idx = max(end_idx, prev_end_idx + 1)
-                
+
                 # Calculate timestamps from word boundaries
                 start_idx = prev_end_idx + 1
                 start_time = all_words[start_idx].start if start_idx < len(all_words) else all_words[-1].end
                 end_time = all_words[end_idx].end
-                
-                debug("word_alignment: segment text=%s, start_idx=%d, end_idx=%d, time=%.2f-%.2f", 
+
+                debug("word_alignment: segment text=%s, start_idx=%d, end_idx=%d, time=%.2f-%.2f",
                       text[:20], start_idx, end_idx, start_time, end_time)
-                
+
                 new_segments.append(Segment(
                     start=start_time,
                     end=end_time,
                     text=" ".join(w.text for w in all_words[start_idx:end_idx+1]),
                     translated=text
                 ))
-                
+
                 prev_end_idx = end_idx
             else:
                 debug("word_alignment: no end position found in: %s", end_part)
         else:
             debug("word_alignment: line doesn't match format: %s", line)
-    
+
     # If no valid segments were parsed, return original segments with translation
     if not new_segments:
         debug("word_alignment: no segments parsed, falling back")
         merged_text = " ".join(seg.text for seg in group)
         merged_translation = " ".join(result) if result else merged_text
-        
+
         # Just return one segment with all the text
         return [Segment(
             start=group[0].start,
@@ -574,7 +573,7 @@ def _translate_with_word_alignment(
             text=merged_text,
             translated=merged_translation
         )]
-    
+
     debug("word_alignment: returning %d segments", len(new_segments))
     return new_segments
 
@@ -585,14 +584,14 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
     """
     import requests
     from .logger import debug
-    
+
     provider = config.get('translation', {}).get('provider', 'openai')
     debug("_translate_sentence_group: provider=%s, expected_parts=%d", provider, expected_parts)
-    
+
     if provider == 'openai':
         api_key = config.get('translation', {}).get('api_key')
         model = config.get('translation', {}).get('model', 'gpt-4o-mini')
-        
+
         response = requests.post(
             'https://api.openai.com/v1/chat/completions',
             headers={'Authorization': f'Bearer {api_key}'},
@@ -605,11 +604,11 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
         )
         response.raise_for_status()
         result = response.json()['choices'][0]['message']['content']
-        
+
     elif provider == 'deepseek':
         api_key = config.get('translation', {}).get('api_key')
         model = config.get('translation', {}).get('model', 'deepseek-chat')
-        
+
         response = requests.post(
             'https://api.deepseek.com/chat/completions',
             headers={'Authorization': f'Bearer {api_key}'},
@@ -622,24 +621,23 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
         )
         response.raise_for_status()
         result = response.json()['choices'][0]['message']['content']
-        
+
     elif provider == 'chatgpt':
         from .auth.openai_codex import get_openai_codex_token
-        import uuid
         import platform
-        
+
         access_token, account_id = get_openai_codex_token()
         # Codex API requires gpt-5.x-codex models, not gpt-4o
         model = config.get('translation', {}).get('model', 'gpt-5.3-codex')
-        
+
         debug("chatgpt: using Codex Responses API, model=%s", model)
-        
+
         # Build user agent
         system = platform.system().lower()
         release = platform.release()
         arch = platform.machine()
         user_agent = f"subgen ({system} {release}; {arch})"
-        
+
         response = requests.post(
             "https://chatgpt.com/backend-api/codex/responses",
             headers={
@@ -661,9 +659,9 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
             timeout=120,
             stream=True
         )
-        
+
         debug("chatgpt: response status=%d", response.status_code)
-        
+
         if response.status_code == 403:
             # Try to get error details
             try:
@@ -673,14 +671,14 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
             except Exception as e:
                 debug("chatgpt: failed to get error body: %s", e)
             raise ValueError("ChatGPT 403 Forbidden - try: subgen auth login chatgpt")
-        
+
         if response.status_code == 401:
             raise ValueError("ChatGPT 401 Unauthorized - token expired. Run: subgen auth login chatgpt")
-        
+
         if not response.ok:
             debug("chatgpt: error response: %s", response.text[:500])
             raise ValueError(f"ChatGPT API error: {response.status_code}")
-        
+
         # Parse Codex Responses API SSE format
         result = ""
         for line in response.iter_lines():
@@ -694,7 +692,7 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
                 try:
                     event = json.loads(data)
                     event_type = event.get('type', '')
-                    
+
                     # Handle different event types from Codex Responses API
                     if event_type == 'response.output_text.delta':
                         # Streaming text delta
@@ -721,14 +719,14 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
                                 result = parts[0]
                 except json.JSONDecodeError:
                     continue
-        
+
         debug("chatgpt: final result len=%d, preview=%s", len(result), result[:100] if result else "(empty)")
 
     elif provider == 'claude':
         import anthropic
         api_key = config.get('translation', {}).get('api_key')
         model = config.get('translation', {}).get('model', 'claude-sonnet-4-20250514')
-        
+
         client = anthropic.Anthropic(api_key=api_key)
         message = client.messages.create(
             model=model,
@@ -741,7 +739,7 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
         import requests
         model = config.get('translation', {}).get('model', 'qwen2.5:14b')
         ollama_url = config.get('translation', {}).get('ollama_url', 'http://localhost:11434')
-        
+
         response = requests.post(
             f"{ollama_url}/api/generate",
             json={
@@ -758,7 +756,7 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
         from .auth.copilot import get_copilot_api_token
         token = get_copilot_api_token()
         model = config.get('translation', {}).get('model', 'gpt-4o-mini')
-        
+
         response = requests.post(
             'https://api.githubcopilot.com/chat/completions',
             headers={
@@ -775,17 +773,17 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
         )
         response.raise_for_status()
         result = response.json()['choices'][0]['message']['content']
-    
+
     else:
         raise ValueError(f"Unsupported provider for sentence-aware translation: {provider}")
-    
+
     debug("_translate_sentence_group: raw result=%s", result[:200] if result else "(empty)")
-    
+
     # Parse result into lines
     lines = [line.strip() for line in result.strip().split('\n') if line.strip()]
-    
+
     debug("_translate_sentence_group: parsed %d lines", len(lines))
-    
+
     # Remove numbering if present (1. xxx, 1) xxx, etc.)
     cleaned = []
     for line in lines:
@@ -795,7 +793,7 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
                     line = line.split(sep, 1)[-1]
                     break
         cleaned.append(line)
-    
+
     return cleaned[:expected_parts]
 
 
@@ -1295,7 +1293,7 @@ MODEL_SETTINGS = {
 def _get_model_settings(config: Dict[str, Any]) -> Dict[str, int]:
     """Get model-specific batch_size and context_chars for proofreading."""
     provider = config.get('translation', {}).get('provider', 'openai')
-    
+
     # Try to get model name from config
     model = None
     if provider == 'openai':
@@ -1310,11 +1308,11 @@ def _get_model_settings(config: Dict[str, Any]) -> Dict[str, int]:
         model = 'ollama'  # Use conservative defaults for all Ollama models
     elif provider == 'copilot':
         model = 'gpt-4o'  # Copilot uses GPT-4 class models
-    
+
     # Look up settings
     if model and model in MODEL_SETTINGS:
         return MODEL_SETTINGS[model]
-    
+
     # Try provider-level defaults
     provider_defaults = {
         'openai': MODEL_SETTINGS['gpt-4o'],
@@ -1324,7 +1322,7 @@ def _get_model_settings(config: Dict[str, Any]) -> Dict[str, int]:
         'copilot': MODEL_SETTINGS['gpt-4o'],
         'ollama': MODEL_SETTINGS['ollama'],
     }
-    
+
     return provider_defaults.get(provider, MODEL_SETTINGS['default'])
 
 
@@ -1335,75 +1333,75 @@ def proofread_translations(
 ) -> List[Segment]:
     """
     Proofread translations with full story context.
-    
+
     Sends the LLM the complete source text for context,
     then reviews translations in batches for accuracy.
-    
+
     Args:
         segments: Segments with .text (original) and .translated
         config: Configuration dictionary
         progress_callback: Progress update callback
-        
+
     Returns:
         Segments with proofread translations
     """
     from .logger import debug
-    
+
     if not segments:
         debug("proofread: no segments, returning early")
         return segments
-    
+
     source_lang = config.get('output', {}).get('source_language', 'auto')
     target_lang = config.get('output', {}).get('target_language', 'zh')
-    
+
     # Load translation rules for target language
     rules = load_translation_rules(target_lang) or "No specific rules."
     debug("proofread: loaded rules for %s (%d chars)", target_lang, len(rules))
-    
+
     # Get model-specific settings (can be overridden in config)
     model_settings = _get_model_settings(config)
     batch_size = config.get('advanced', {}).get('proofread_batch_size') or model_settings['batch_size']
     max_context_chars = config.get('advanced', {}).get('proofread_context_chars') or model_settings['context_chars']
-    
+
     # Build story context (all original text, no timestamps)
     story_lines = [seg.text for seg in segments if seg.text.strip()]
     story_context = '\n'.join(story_lines)
-    
+
     # Truncate if too long (keep first and last parts for context)
     if len(story_context) > max_context_chars:
         half = max_context_chars // 2
         story_context = story_context[:half] + "\n...[truncated]...\n" + story_context[-half:]
-    
-    debug("proofread: %d segments, context=%d chars, batch_size=%d (model settings)", 
+
+    debug("proofread: %d segments, context=%d chars, batch_size=%d (model settings)",
           len(segments), len(story_context), batch_size)
-    
+
     # Check provider is supported
     provider = config.get('translation', {}).get('provider', 'openai')
     debug("proofread: provider=%s", provider)
-    
+
     supported_providers = ['openai', 'claude', 'deepseek', 'chatgpt']
     if provider not in supported_providers:
         debug("proofread: unsupported provider %s, skipping", provider)
         print(f"[SubGen] Warning: Unsupported provider '{provider}' for proofreading (supported: {supported_providers})")
         return segments
-    
+
     # Save raw translations before proofreading (for comparison)
     for seg in segments:
         if seg.translated and not seg.translated_raw:
             seg.translated_raw = seg.translated
-    
+
     # Process in batches
     proofread_segments = []
-    
+
     for i in range(0, len(segments), batch_size):
         batch = segments[i:i + batch_size]
-        
+
         # Build pairs for review: "Original: xxx | Translation: yyy"
         pairs = []
         for j, seg in enumerate(batch):
             pairs.append(f"{j+1}. [{seg.text}] → [{seg.translated}]")
         pairs_text = '\n'.join(pairs)
-        
+
         # Build prompt with rules and language info
         system_prompt = PROOFREAD_SYSTEM_PROMPT.format(
             source_lang=_get_lang_name(source_lang),
@@ -1412,21 +1410,21 @@ def proofread_translations(
             story_context=story_context,
             count=len(batch)
         )
-        
+
         user_prompt = PROOFREAD_USER_PROMPT.format(
             source_lang=_get_lang_name(source_lang),
             target_lang=_get_lang_name(target_lang),
             count=len(batch),
             pairs=pairs_text
         )
-        
+
         try:
-            debug("proofread: calling LLM for batch %d/%d (%d segments)", 
+            debug("proofread: calling LLM for batch %d/%d (%d segments)",
                   i // batch_size + 1, (len(segments) + batch_size - 1) // batch_size, len(batch))
-            
+
             # Call LLM with custom prompts
             result = _call_llm_for_proofread(system_prompt, user_prompt, config)
-            
+
             # Parse corrections (one per line)
             if result:
                 correction_lines = result.strip().split('\n')
@@ -1440,27 +1438,27 @@ def proofread_translations(
                     if line:
                         cleaned.append(line)
                 correction_lines = cleaned
-                
+
                 debug("proofread: batch %d got %d corrections", i // batch_size + 1, len(correction_lines))
-                
+
                 # Apply corrections
                 for j, seg in enumerate(batch):
                     if j < len(correction_lines) and correction_lines[j].strip():
                         new_trans = correction_lines[j].strip()
                         if new_trans != seg.translated:
-                            debug("proofread: corrected [%s] → [%s]", 
+                            debug("proofread: corrected [%s] → [%s]",
                                   seg.translated, new_trans)
                         seg.translated = new_trans
-            
+
         except Exception as e:
             debug("proofread: batch %d failed: %s", i // batch_size + 1, e)
             # Keep original translations on error
-        
+
         proofread_segments.extend(batch)
-        
+
         if progress_callback:
             progress_callback(len(batch))
-    
+
     return proofread_segments
 
 
@@ -1472,13 +1470,13 @@ def _call_llm_for_proofread(
     """Call LLM with custom prompts for proofreading."""
     import requests
     from .logger import debug
-    
+
     provider = config.get('translation', {}).get('provider', 'openai')
     debug("_call_llm_for_proofread: provider=%s", provider)
-    
+
     if provider == 'chatgpt':
         from .auth.openai_codex import get_openai_codex_token, OpenAICodexAuthError, openai_codex_login
-        
+
         try:
             access_token, account_id = get_openai_codex_token()
         except OpenAICodexAuthError as e:
@@ -1486,10 +1484,10 @@ def _call_llm_for_proofread(
             print("Starting ChatGPT login...\n")
             openai_codex_login()
             access_token, account_id = get_openai_codex_token()
-        
+
         model = config.get('translation', {}).get('model', 'gpt-5.3-codex')
         debug("_call_llm_for_proofread: chatgpt model=%s", model)
-        
+
         response = requests.post(
             "https://chatgpt.com/backend-api/codex/responses",
             headers={
@@ -1509,13 +1507,13 @@ def _call_llm_for_proofread(
             timeout=180,
             stream=True
         )
-        
+
         debug("_call_llm_for_proofread: chatgpt response status=%d", response.status_code)
-        
+
         if not response.ok:
             error_text = response.text[:200] if hasattr(response, 'text') else str(response.content[:200])
             raise ValueError(f"ChatGPT API error: {response.status_code} - {error_text}")
-        
+
         # Parse SSE stream
         result_text = ""
         for line in response.iter_lines():
@@ -1545,16 +1543,16 @@ def _call_llm_for_proofread(
                                             result_text = c.get('text', result_text)
                 except json.JSONDecodeError:
                     continue
-        
+
         return result_text
-    
+
     elif provider == 'openai':
         api_key = config.get('translation', {}).get('openai_api_key', '')
         if not api_key:
             raise ValueError("OpenAI API key not configured")
-        
+
         model = config.get('translation', {}).get('openai_model', 'gpt-4o')
-        
+
         response = requests.post(
             "https://api.openai.com/v1/chat/completions",
             headers={
@@ -1571,19 +1569,19 @@ def _call_llm_for_proofread(
             },
             timeout=180
         )
-        
+
         if not response.ok:
             raise ValueError(f"OpenAI API error: {response.status_code}")
-        
+
         return response.json()['choices'][0]['message']['content']
-    
+
     elif provider == 'claude':
         api_key = config.get('translation', {}).get('claude_api_key', '')
         if not api_key:
             raise ValueError("Claude API key not configured")
-        
+
         model = config.get('translation', {}).get('claude_model', 'claude-sonnet-4-20250514')
-        
+
         response = requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={
@@ -1599,19 +1597,19 @@ def _call_llm_for_proofread(
             },
             timeout=180
         )
-        
+
         if not response.ok:
             raise ValueError(f"Claude API error: {response.status_code}")
-        
+
         return response.json()['content'][0]['text']
-    
+
     elif provider == 'deepseek':
         api_key = config.get('translation', {}).get('deepseek_api_key', '')
         if not api_key:
             raise ValueError("DeepSeek API key not configured")
-        
+
         model = config.get('translation', {}).get('deepseek_model', 'deepseek-chat')
-        
+
         response = requests.post(
             "https://api.deepseek.com/v1/chat/completions",
             headers={
@@ -1628,11 +1626,11 @@ def _call_llm_for_proofread(
             },
             timeout=180
         )
-        
+
         if not response.ok:
             raise ValueError(f"DeepSeek API error: {response.status_code}")
-        
+
         return response.json()['choices'][0]['message']['content']
-    
+
     else:
         raise ValueError(f"Unsupported provider for proofreading: {provider}")

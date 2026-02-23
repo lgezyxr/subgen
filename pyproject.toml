@@ -6,5 +6,7 @@ addopts = "-v --tb=short"
 
 [tool.ruff]
 line-length = 100
+
+[tool.ruff.lint]
 select = ["E", "F", "W"]
-ignore = ["E501"]
+ignore = ["E501", "F401"]  # F401: unused imports (used for availability checks)

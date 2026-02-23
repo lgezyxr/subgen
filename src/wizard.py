@@ -158,7 +158,7 @@ def setup_chatgpt_oauth() -> bool:
     print("  A browser window will open. Log in with your OpenAI account.")
 
     try:
-        from .auth.openai_codex import openai_codex_login, OpenAICodexAuthError
+        from .auth.openai_codex import openai_codex_login
         openai_codex_login()
         print("\n  ✅ ChatGPT authorized successfully!")
         return True
@@ -175,19 +175,19 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
         dict with configuration values
     """
     print_header()
-    
+
     # Auto-detect hardware
     print("Detecting hardware...")
     hw = detect_hardware()
     print_hardware_summary(hw)
-    
+
     # Get recommended config
     rec_provider, rec_device, rec_model = recommend_whisper_config(hw)
-    
+
     # Check if dependencies are installed
     install_cmd = get_install_instructions(hw)
     if install_cmd:
-        print(f"📦 To use local processing, install:")
+        print("📦 To use local processing, install:")
         print(f"   {install_cmd}")
         print()
 
@@ -205,15 +205,15 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
     # Mark recommended provider
     for key in WHISPER_PROVIDERS:
         WHISPER_PROVIDERS[key]["recommended"] = (key == rec_provider)
-    
+
     print_provider_options(WHISPER_PROVIDERS, "📢 Speech Recognition (Whisper)")
-    
+
     # Show auto-detected recommendation
     print(f"  💡 Auto-detected recommendation: {rec_provider}")
     if rec_provider == "local" and hw.nvidia_vram_gb:
         print(f"     (GPU: {hw.nvidia_gpu_name}, {hw.nvidia_vram_gb:.0f}GB VRAM → {rec_model})")
     elif rec_provider == "mlx":
-        print(f"     (Apple Silicon detected)")
+        print("     (Apple Silicon detected)")
     print()
 
     whisper_keys = list(WHISPER_PROVIDERS.keys())
@@ -245,7 +245,7 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
             response = input("\n  Continue anyway? [y/N]: ").strip().lower()
             if response != 'y':
                 sys.exit(1)
-        
+
         # Choose model based on VRAM (local model names, not cloud API names)
         if hw.has_nvidia_gpu and hw.nvidia_vram_gb:
             if hw.nvidia_vram_gb >= 8:
@@ -261,8 +261,8 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
         config["whisper"]["local_model"] = model
         config["whisper"]["device"] = "cuda"
         print(f"  ℹ️  Using {model} model with CUDA.")
-        print(f"  ℹ️  Model will download automatically on first run (~3GB for large-v3)")
-    
+        print("  ℹ️  Model will download automatically on first run (~3GB for large-v3)")
+
     if whisper_provider == "mlx":
         # Check if mlx-whisper is installed
         try:
@@ -275,10 +275,10 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
             response = input("\n  Continue anyway? [y/N]: ").strip().lower()
             if response != 'y':
                 sys.exit(1)
-        
+
         config["whisper"]["local_model"] = "large-v3"
-        print(f"  ℹ️  Using large-v3 model with MLX.")
-        print(f"  ℹ️  Model will download automatically on first run (~3GB)")
+        print("  ℹ️  Using large-v3 model with MLX.")
+        print("  ℹ️  Model will download automatically on first run (~3GB)")
 
     # Step 2: LLM provider
     print("\n" + "-" * 50)

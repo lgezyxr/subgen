@@ -262,33 +262,33 @@ def add_subtitle_track(
 def load_srt(srt_path: Path) -> List:
     """
     Load an existing SRT file and return segments.
-    
+
     Args:
         srt_path: Path to the SRT file
-        
+
     Returns:
         List of Segment objects with text (original) and translated fields
     """
     from .transcribe import Segment
     import re
-    
+
     if not srt_path.exists():
         raise FileNotFoundError(f"SRT file not found: {srt_path}")
-    
+
     with open(srt_path, 'r', encoding='utf-8') as f:
         content = f.read()
-    
+
     segments = []
-    
+
     # Parse SRT format
     # Each entry: index\ntimestamp\ntext\n\n
     blocks = re.split(r'\n\n+', content.strip())
-    
+
     for block in blocks:
         lines = block.strip().split('\n')
         if len(lines) < 3:
             continue
-        
+
         # Parse timestamp line: 00:00:01,000 --> 00:00:04,000
         timestamp_match = re.match(
             r'(\d{2}):(\d{2}):(\d{2})[,.](\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})[,.](\d{3})',
@@ -296,15 +296,15 @@ def load_srt(srt_path: Path) -> List:
         )
         if not timestamp_match:
             continue
-        
+
         h1, m1, s1, ms1, h2, m2, s2, ms2 = timestamp_match.groups()
         start = int(h1) * 3600 + int(m1) * 60 + int(s1) + int(ms1) / 1000
         end = int(h2) * 3600 + int(m2) * 60 + int(s2) + int(ms2) / 1000
-        
+
         # Get text (may be multiple lines)
         text_lines = lines[2:]
         text = '\n'.join(text_lines)
-        
+
         # For bilingual subtitles, split into original and translated
         # Format: "original\ntranslated" or just "translated"
         if '\n' in text:
@@ -315,12 +315,12 @@ def load_srt(srt_path: Path) -> List:
             # Single line - treat as translated (we don't have original)
             original = text
             translated = text
-        
+
         segments.append(Segment(
             start=start,
             end=end,
             text=original,
             translated=translated
         ))
-    
+
     return segments

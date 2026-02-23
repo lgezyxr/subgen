@@ -2,7 +2,7 @@
 
 import re
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from dataclasses import dataclass, field
 
 from .logger import debug
@@ -32,47 +32,47 @@ class Segment:
 def split_long_segments(segments: List[Segment], max_duration: float = 15.0) -> List[Segment]:
     """
     Split segments that are too long using word boundaries.
-    
+
     Args:
         segments: List of transcribed segments
         max_duration: Maximum duration for a segment (seconds)
-        
+
     Returns:
         List of segments with long ones split
     """
     result = []
-    
+
     for seg in segments:
         duration = seg.end - seg.start
-        
+
         # If segment is within limit, keep as-is
         if duration <= max_duration:
             result.append(seg)
             continue
-        
+
         # If no word-level data, keep as-is (can't split accurately)
         if not seg.words:
             debug("split_long_segments: segment [%.1f-%.1f] too long (%.1fs) but no word data, keeping",
                   seg.start, seg.end, duration)
             result.append(seg)
             continue
-        
+
         # Split using word boundaries
         debug("split_long_segments: splitting segment [%.1f-%.1f] (%.1fs, %d words)",
               seg.start, seg.end, duration, len(seg.words))
-        
+
         current_words = []
         current_start = seg.words[0].start if seg.words else seg.start
-        
+
         for word in seg.words:
             current_words.append(word)
             current_duration = word.end - current_start
-            
+
             # Split at natural boundaries (punctuation) or when duration exceeded
             is_sentence_end = word.text.rstrip().endswith(('.', '!', '?', '。', '！', '？', '…'))
             should_split = (current_duration >= max_duration * 0.8) or \
                           (current_duration >= max_duration * 0.5 and is_sentence_end)
-            
+
             if should_split and len(current_words) >= 2:
                 # Create new segment from accumulated words
                 new_seg = Segment(
@@ -86,11 +86,11 @@ def split_long_segments(segments: List[Segment], max_duration: float = 15.0) -> 
                 result.append(new_seg)
                 debug("split_long_segments: created sub-segment [%.1f-%.1f] %s",
                       new_seg.start, new_seg.end, new_seg.text[:30])
-                
+
                 # Reset for next segment
                 current_words = []
                 current_start = word.end
-        
+
         # Handle remaining words
         if current_words:
             new_seg = Segment(
@@ -102,7 +102,7 @@ def split_long_segments(segments: List[Segment], max_duration: float = 15.0) -> 
                 avg_logprob=seg.avg_logprob
             )
             result.append(new_seg)
-    
+
     return result
 
 
@@ -180,7 +180,7 @@ def transcribe_audio(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
     """
     whisper_config = config.get('whisper', {})
     provider = whisper_config.get('provider', 'local')
-    
+
     debug("transcribe: provider=%s, audio=%s", provider, audio_path)
 
     if provider == 'local':
@@ -208,9 +208,9 @@ def transcribe_audio(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
     # Post-process: split long segments using word boundaries
     max_segment_duration = config.get('advanced', {}).get('max_segment_duration', 15.0)
     split_long = config.get('advanced', {}).get('split_long_segments', True)
-    
+
     debug("transcribe: split_long=%s, max_duration=%.1f", split_long, max_segment_duration)
-    
+
     if split_long:
         original_count = len(segments)
         debug("transcribe: calling split_long_segments...")
@@ -234,43 +234,43 @@ def transcribe_audio(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
 def validate_segments(segments: List[Segment], config: Dict[str, Any]) -> List[Segment]:
     """
     Validate and filter segments based on speech density.
-    
+
     Segments with very low words-per-second are likely music or noise
     that Whisper incorrectly transcribed.
-    
+
     Args:
         segments: List of transcribed segments
         config: Configuration dictionary
-        
+
     Returns:
         Filtered list of segments
     """
     min_words_per_sec = config.get('advanced', {}).get('min_words_per_sec', 0.3)
     min_duration_for_check = config.get('advanced', {}).get('min_duration_for_density_check', 20.0)
-    
+
     result = []
     skipped = 0
-    
+
     for seg in segments:
         duration = seg.end - seg.start
         word_count = len(seg.words) if seg.words else len(seg.text.split())
-        
+
         # Only check density for long segments
         if duration >= min_duration_for_check:
             words_per_sec = word_count / duration if duration > 0 else 0
-            
+
             if words_per_sec < min_words_per_sec:
                 debug("validate_segments: skipping [%.1f-%.1f] (%.1fs, %d words, %.2f w/s): %s",
                       seg.start, seg.end, duration, word_count, words_per_sec,
                       seg.text[:30] if seg.text else "")
                 skipped += 1
                 continue
-        
+
         result.append(seg)
-    
+
     if skipped > 0:
         debug("validate_segments: skipped %d low-density segments (likely music)", skipped)
-    
+
     return result
 
 
@@ -281,7 +281,7 @@ _model_ref = None
 def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
     """Transcribe using local faster-whisper"""
     global _model_ref
-    
+
     try:
         from faster_whisper import WhisperModel
     except ImportError:
@@ -289,13 +289,11 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
             "Local Whisper requires faster-whisper:\n"
             "pip install faster-whisper"
         )
-    
-    import gc
+
     try:
         import torch
-        has_torch = True
     except ImportError:
-        has_torch = False
+        pass
 
     model_name = config['whisper'].get('local_model', 'large-v3')
     device = config['whisper'].get('device', 'cuda')
@@ -306,7 +304,7 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
     # Select compute type (can be overridden in config)
     # float16 is fastest but not supported on older GPUs (Pascal/GTX 10xx)
     compute_type = config['whisper'].get('compute_type', None)
-    
+
     if compute_type is None:
         if device == "cpu":
             compute_type = "int8"
@@ -327,7 +325,7 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
             model = WhisperModel(model_name, device=device, compute_type=compute_type)
         else:
             raise
-    
+
     debug("transcribe_local: model loaded, starting transcription...")
 
     # Transcription options
@@ -342,8 +340,8 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
 
     # Transcribe
     segments_iter, info = model.transcribe(str(audio_path), **transcribe_opts)
-    
-    debug("transcribe_local: detected language=%s, probability=%.2f", 
+
+    debug("transcribe_local: detected language=%s, probability=%.2f",
           info.language, info.language_probability)
 
     # Config for filtering
@@ -354,19 +352,19 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
     segments = []
     segment_count = 0
     skipped_count = 0
-    
+
     for seg in segments_iter:
         segment_count += 1
         duration = seg.end - seg.start
         no_speech_prob = getattr(seg, 'no_speech_prob', 0.0)
         avg_logprob = getattr(seg, 'avg_logprob', 0.0)
-        
+
         # Debug logging for first few and every 50th segment
         if segment_count <= 3 or segment_count % 50 == 0:
-            debug("transcribe_local: segment %d: [%.1f-%.1f] no_speech=%.2f logprob=%.2f %s", 
+            debug("transcribe_local: segment %d: [%.1f-%.1f] no_speech=%.2f logprob=%.2f %s",
                   segment_count, seg.start, seg.end, no_speech_prob, avg_logprob,
                   seg.text[:40] if seg.text else "")
-        
+
         # Filter likely music/noise segments
         if filter_music:
             # High no_speech_prob = likely not speech
@@ -378,7 +376,7 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
                     debug("transcribe_local: skipping segment %d (no_speech=%.2f, duration=%.1fs): %s",
                           segment_count, no_speech_prob, duration, seg.text[:30] if seg.text else "")
                     continue
-        
+
         # Extract word-level timestamps
         words = []
         if seg.words:
@@ -388,7 +386,7 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
                     start=w.start,
                     end=w.end
                 ))
-        
+
         segments.append(Segment(
             start=seg.start,
             end=seg.end,
@@ -397,14 +395,14 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
             no_speech_prob=no_speech_prob,
             avg_logprob=avg_logprob
         ))
-    
-    debug("transcribe_local: completed, total %d segments (%d skipped as music/noise)", 
+
+    debug("transcribe_local: completed, total %d segments (%d skipped as music/noise)",
           len(segments), skipped_count)
 
     # GPU memory cleanup (disabled - causes crash on some systems)
     # The memory will be released naturally when the function returns
     # and the model goes out of scope
-    # 
+    #
     # If you want to enable manual cleanup, uncomment below:
     # debug("transcribe_local: releasing GPU memory...")
     # try:
@@ -418,7 +416,7 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
     # Keep model reference alive to prevent crash during garbage collection
     # The model will be cleaned up on next transcription or program exit
     _model_ref = model
-    
+
     debug("transcribe_local: about to return %d segments", len(segments))
     return segments
 
@@ -473,7 +471,7 @@ def _transcribe_mlx(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
                 start=w.get("start", 0),
                 end=w.get("end", 0)
             ))
-        
+
         segments.append(Segment(
             start=seg["start"],
             end=seg["end"],
