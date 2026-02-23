@@ -1,5 +1,6 @@
 """Translation module"""
 
+import re
 import time
 import json
 from pathlib import Path
@@ -318,7 +319,6 @@ def _group_segments_by_sentence(segments: List[Segment], max_group_size: int = 1
     Returns:
         List of segment groups, where each group forms a complete sentence
     """
-    import re
     sentence_end = re.compile(r'[.!?。！？…][\s"\'）\)]*$')
 
     groups = []
@@ -530,7 +530,6 @@ def _translate_with_word_alignment(
             end_part = parts[1].lower()
 
             # Extract end position
-            import re
             match = re.search(r'end:\s*(\d+)', end_part)
             if match:
                 end_idx = int(match.group(1))
@@ -1441,7 +1440,6 @@ def proofread_translations(
                 for line in correction_lines:
                     line = line.strip()
                     # Remove patterns like "1. ", "1) ", etc.
-                    import re
                     line = re.sub(r'^\d+[\.\)]\s*', '', line)
                     if line:
                         cleaned.append(line)

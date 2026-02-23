@@ -421,7 +421,7 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                 # Clean up temp file
                 try:
                     embedded_subtitle_path.unlink(missing_ok=True)
-                except:
+                except Exception:
                     pass
                 
                 # Save to cache for future runs
