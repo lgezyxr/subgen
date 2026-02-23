@@ -1357,7 +1357,7 @@ def proofread_translations(
     target_lang = config.get('output', {}).get('target_language', 'zh')
     
     # Load translation rules for target language
-    rules = _load_rules(target_lang)
+    rules = load_translation_rules(target_lang) or "No specific rules."
     debug("proofread: loaded rules for %s (%d chars)", target_lang, len(rules))
     
     # Get model-specific settings (can be overridden in config)
