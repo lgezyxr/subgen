@@ -196,6 +196,14 @@ def transcribe_audio(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
 
     debug("transcribe: got %d segments", len(segments))
 
+    # Validate: filter out low-density segments (likely music/noise)
+    validate = config.get('advanced', {}).get('validate_segments', True)
+    if validate:
+        original_count = len(segments)
+        segments = validate_segments(segments, config)
+        if len(segments) != original_count:
+            debug("transcribe: validated, %d -> %d segments", original_count, len(segments))
+
     # Post-process: split long segments using word boundaries
     max_segment_duration = config.get('advanced', {}).get('max_segment_duration', 15.0)
     split_long = config.get('advanced', {}).get('split_long_segments', True)
@@ -220,6 +228,49 @@ def transcribe_audio(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
     debug("transcribe: returning %d segments", len(segments))
 
     return segments
+
+
+def validate_segments(segments: List[Segment], config: Dict[str, Any]) -> List[Segment]:
+    """
+    Validate and filter segments based on speech density.
+    
+    Segments with very low words-per-second are likely music or noise
+    that Whisper incorrectly transcribed.
+    
+    Args:
+        segments: List of transcribed segments
+        config: Configuration dictionary
+        
+    Returns:
+        Filtered list of segments
+    """
+    min_words_per_sec = config.get('advanced', {}).get('min_words_per_sec', 0.3)
+    min_duration_for_check = config.get('advanced', {}).get('min_duration_for_density_check', 20.0)
+    
+    result = []
+    skipped = 0
+    
+    for seg in segments:
+        duration = seg.end - seg.start
+        word_count = len(seg.words) if seg.words else len(seg.text.split())
+        
+        # Only check density for long segments
+        if duration >= min_duration_for_check:
+            words_per_sec = word_count / duration if duration > 0 else 0
+            
+            if words_per_sec < min_words_per_sec:
+                debug("validate_segments: skipping [%.1f-%.1f] (%.1fs, %d words, %.2f w/s): %s",
+                      seg.start, seg.end, duration, word_count, words_per_sec,
+                      seg.text[:30] if seg.text else "")
+                skipped += 1
+                continue
+        
+        result.append(seg)
+    
+    if skipped > 0:
+        debug("validate_segments: skipped %d low-density segments (likely music)", skipped)
+    
+    return result
 
 
 # Global reference to keep model alive and prevent crash on garbage collection

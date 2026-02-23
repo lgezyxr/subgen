@@ -92,3 +92,8 @@ advanced:
   # Long segment handling
   split_long_segments: true       # Split segments longer than max_segment_duration
   max_segment_duration: 15.0      # Maximum segment duration in seconds
+
+  # Segment validation (detect music/noise by speech density)
+  validate_segments: true         # Enable validation
+  min_words_per_sec: 0.3          # Minimum words/second (below = likely music)
+  min_duration_for_density_check: 20.0  # Only check segments longer than this
