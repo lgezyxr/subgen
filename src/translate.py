@@ -1087,6 +1087,9 @@ def _translate_copilot(
     )
 
     # Call Copilot API (OpenAI-compatible)
+    # Get model from config (default to claude-sonnet-4 for Copilot)
+    model = config.get('translation', {}).get('model', 'claude-sonnet-4')
+    
     response = requests.post(
         "https://api.githubcopilot.com/chat/completions",
         headers={
@@ -1098,7 +1101,7 @@ def _translate_copilot(
             "Openai-Intent": "conversation-panel",
         },
         json={
-            "model": "gpt-4o",
+            "model": model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}

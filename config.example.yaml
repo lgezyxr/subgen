@@ -33,10 +33,17 @@ translation:
   # - ollama: Local LLM
   provider: "copilot"
 
-  # Model selection
-  model: "gpt-4o-mini"  # Best value
-  # model: "gpt-4o"     # Best quality
-  # model: "deepseek-chat"  # Chinese optimized
+  # Model selection (depends on provider)
+  # For Copilot:
+  model: "claude-sonnet-4"   # Default for Copilot (balanced)
+  # model: "claude-opus-4"   # Best quality (Copilot)
+  # model: "gpt-4o"          # GPT-4o (Copilot)
+  # model: "o3-mini"         # Fast reasoning (Copilot)
+  # For OpenAI:
+  # model: "gpt-4o-mini"     # Best value
+  # model: "gpt-4o"          # Best quality
+  # For DeepSeek:
+  # model: "deepseek-chat"   # Chinese optimized
 
   # API configuration
   api_key: ""         # API Key (not needed for copilot)
