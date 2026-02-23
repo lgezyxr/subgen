@@ -357,6 +357,7 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
     # except Exception as e:
     #     debug("transcribe_local: cleanup error: %s", e)
 
+    debug("transcribe_local: about to return %d segments", len(segments))
     return segments
 
 
