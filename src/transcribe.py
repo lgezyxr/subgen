@@ -336,27 +336,19 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
     debug("transcribe_local: completed, total %d segments (%d skipped as music/noise)", 
           len(segments), skipped_count)
 
-    # Explicitly release GPU memory
-    debug("transcribe_local: releasing GPU memory...")
-    try:
-        debug("transcribe_local: deleting model...")
-        del model
-        debug("transcribe_local: model deleted, running gc.collect()...")
-        gc.collect()
-        debug("transcribe_local: gc.collect() done")
-    except Exception as e:
-        debug("transcribe_local: error during cleanup: %s", e)
-        import traceback
-        debug("transcribe_local: traceback: %s", traceback.format_exc())
-    
-    try:
-        if has_torch and device == 'cuda' and torch.cuda.is_available():
-            debug("transcribe_local: clearing CUDA cache...")
-            torch.cuda.empty_cache()
-            debug("transcribe_local: CUDA cache cleared")
-    except Exception as e:
-        debug("transcribe_local: could not clear CUDA cache: %s", e)
-    debug("transcribe_local: GPU memory released")
+    # GPU memory cleanup (disabled - causes crash on some systems)
+    # The memory will be released naturally when the function returns
+    # and the model goes out of scope
+    # 
+    # If you want to enable manual cleanup, uncomment below:
+    # debug("transcribe_local: releasing GPU memory...")
+    # try:
+    #     del model
+    #     gc.collect()
+    #     if has_torch and device == 'cuda' and torch.cuda.is_available():
+    #         torch.cuda.empty_cache()
+    # except Exception as e:
+    #     debug("transcribe_local: cleanup error: %s", e)
 
     return segments
 
