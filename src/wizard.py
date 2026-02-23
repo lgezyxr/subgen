@@ -209,6 +209,23 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
         config["whisper"][f"{whisper_provider}_key"] = key
 
     if whisper_provider == "local":
+        # Check if faster-whisper is installed
+        try:
+            import faster_whisper
+            print("  ✅ faster-whisper is installed")
+        except ImportError:
+            print("\n  ⚠️  faster-whisper is not installed!")
+            print("  Run this command to install:")
+            if hw.platform == "windows":
+                print("    pip install torch --index-url https://download.pytorch.org/whl/cu118")
+                print("    pip install faster-whisper")
+            else:
+                print("    pip install torch faster-whisper")
+            print("\n  After installing, run 'subgen init' again.")
+            response = input("\n  Continue anyway? [y/N]: ").strip().lower()
+            if response != 'y':
+                sys.exit(1)
+        
         # Use auto-detected model if available
         if hw.has_nvidia_gpu and hw.nvidia_vram_gb:
             model = rec_model
@@ -217,10 +234,24 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
         config["whisper"]["local_model"] = model
         config["whisper"]["device"] = "cuda"
         print(f"  ℹ️  Using {model} model with CUDA.")
+        print(f"  ℹ️  Model will download automatically on first run (~3GB for large-v3)")
     
     if whisper_provider == "mlx":
+        # Check if mlx-whisper is installed
+        try:
+            import mlx_whisper
+            print("  ✅ mlx-whisper is installed")
+        except ImportError:
+            print("\n  ⚠️  mlx-whisper is not installed!")
+            print("  Run: pip install mlx-whisper")
+            print("\n  After installing, run 'subgen init' again.")
+            response = input("\n  Continue anyway? [y/N]: ").strip().lower()
+            if response != 'y':
+                sys.exit(1)
+        
         config["whisper"]["local_model"] = "large-v3"
         print(f"  ℹ️  Using large-v3 model with MLX.")
+        print(f"  ℹ️  Model will download automatically on first run (~3GB)")
 
     # Step 2: LLM provider
     print("\n" + "-" * 50)
