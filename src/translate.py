@@ -609,6 +609,15 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
         
         debug("chatgpt: response status=%d", response.status_code)
         
+        if response.status_code == 403:
+            # Try to get error details
+            try:
+                error_body = response.text[:500]
+                debug("chatgpt: 403 error body: %s", error_body)
+            except:
+                pass
+            raise ValueError("ChatGPT 403 Forbidden - token may be expired. Run: subgen auth login chatgpt")
+        
         result = ""
         for line in response.iter_lines():
             if not line:
