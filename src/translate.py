@@ -1241,25 +1241,33 @@ You are reviewing existing translations, NOT translating from scratch. Your job 
 1. Fix mistranslations that don't match the original meaning
 2. Improve unnatural expressions to sound more native in {target_lang}
 3. Ensure consistency in names, terms, and tone throughout
-4. Make sure translations fit the story context
 
 ## Translation Rules
 {rules}
 
-## Story Context (for understanding, NOT for translation)
+## Story Context (for understanding only)
 {story_context}
 
-## Critical Output Rules
-- Output MUST be in {target_lang} only
-- Output exactly {count} lines, one corrected translation per line
-- If a translation is already good, output it unchanged
-- Do NOT add numbering, explanations, or the original text
-- Do NOT output the source language text
-- NEVER mix languages in your output
+## CRITICAL OUTPUT RULES (MUST FOLLOW)
+1. Output EXACTLY {count} lines - no more, no less
+2. Line N of your output = correction for input line N (STRICT 1:1 MAPPING)
+3. NEVER reorder, merge, or split lines
+4. If a translation is good, output it UNCHANGED on the same line number
+5. Output {target_lang} ONLY - no source text, no explanations, no numbering
+6. Each line must be a complete subtitle, not a fragment
+
+## Example
+Input:
+1. [Hello] → [你好]
+2. [How are you?] → [你怎么样？]
+
+Output (2 lines, same order):
+你好
+你好吗？
 """
 
-PROOFREAD_USER_PROMPT = """Review these {count} translations from {source_lang} to {target_lang}.
-Output {count} lines of corrected {target_lang} translations only.
+PROOFREAD_USER_PROMPT = """Review these {count} translations. Output EXACTLY {count} lines in the SAME ORDER.
+Line 1 of output = corrected line 1, Line 2 = corrected line 2, etc.
 
 {pairs}
 """
@@ -1439,16 +1447,23 @@ def proofread_translations(
                         cleaned.append(line)
                 correction_lines = cleaned
 
-                debug("proofread: batch %d got %d corrections", i // batch_size + 1, len(correction_lines))
+                debug("proofread: batch %d got %d corrections (expected %d)", 
+                      i // batch_size + 1, len(correction_lines), len(batch))
 
-                # Apply corrections
-                for j, seg in enumerate(batch):
-                    if j < len(correction_lines) and correction_lines[j].strip():
+                # Validate: line count must match exactly to preserve order
+                if len(correction_lines) != len(batch):
+                    debug("proofread: batch %d SKIPPED - line count mismatch (%d != %d)", 
+                          i // batch_size + 1, len(correction_lines), len(batch))
+                    print(f"[SubGen] Warning: Proofreading batch skipped (LLM returned {len(correction_lines)} lines, expected {len(batch)})")
+                    # Keep original translations
+                else:
+                    # Apply corrections (only if count matches)
+                    for j, seg in enumerate(batch):
                         new_trans = correction_lines[j].strip()
-                        if new_trans != seg.translated:
+                        if new_trans and new_trans != seg.translated:
                             debug("proofread: corrected [%s] → [%s]",
                                   seg.translated, new_trans)
-                        seg.translated = new_trans
+                            seg.translated = new_trans
 
         except Exception as e:
             debug("proofread: batch %d failed: %s", i // batch_size + 1, e)
