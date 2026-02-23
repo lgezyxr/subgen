@@ -10,12 +10,10 @@ from .hardware import detect_hardware, recommend_whisper_config, print_hardware_
 
 # Provider definitions
 WHISPER_PROVIDERS = {
-    "groq": {
-        "name": "Groq",
-        "description": "Free tier, very fast",
-        "requires_key": True,
-        "key_name": "GROQ_API_KEY",
-        "key_url": "https://console.groq.com/keys",
+    "local": {
+        "name": "Local (faster-whisper)",
+        "description": "Free, requires NVIDIA GPU",
+        "requires_key": False
     },
     "mlx": {
         "name": "MLX (Apple Silicon)",
@@ -23,41 +21,48 @@ WHISPER_PROVIDERS = {
         "requires_key": False,
         "mac_only": True
     },
+    "groq": {
+        "name": "Groq (Cloud)",
+        "description": "Free tier, very fast, no GPU needed",
+        "requires_key": True,
+        "key_name": "GROQ_API_KEY",
+        "key_url": "https://console.groq.com/keys",
+    },
     "openai": {
-        "name": "OpenAI",
+        "name": "OpenAI Whisper API",
         "description": "$0.006/min, most stable",
         "requires_key": True,
         "key_name": "OPENAI_API_KEY",
         "key_url": "https://platform.openai.com/api-keys"
     },
-    "local": {
-        "name": "Local (faster-whisper)",
-        "description": "Free, requires NVIDIA GPU with 4GB+ VRAM",
-        "requires_key": False
-    }
 }
 
 LLM_PROVIDERS = {
-    "copilot": {
-        "name": "GitHub Copilot",
-        "description": "Use your GitHub subscription, OAuth login",
+    "chatgpt": {
+        "name": "ChatGPT Plus/Pro (OAuth)",
+        "description": "Use your ChatGPT subscription, browser login",
         "requires_key": False,
-        "requires_oauth": True,
-        "recommended": True
+        "requires_oauth": "chatgpt",
+    },
+    "copilot": {
+        "name": "GitHub Copilot (OAuth)",
+        "description": "Use your GitHub Copilot subscription",
+        "requires_key": False,
+        "requires_oauth": "copilot",
+    },
+    "deepseek": {
+        "name": "DeepSeek",
+        "description": "Very cheap (~¥1/M tokens), good for Chinese, free credits",
+        "requires_key": True,
+        "key_name": "DEEPSEEK_API_KEY",
+        "key_url": "https://platform.deepseek.com/"
     },
     "openai": {
-        "name": "OpenAI",
+        "name": "OpenAI API",
         "description": "gpt-4o-mini ~$0.15/M tokens",
         "requires_key": True,
         "key_name": "OPENAI_API_KEY",
         "key_url": "https://platform.openai.com/api-keys"
-    },
-    "deepseek": {
-        "name": "DeepSeek",
-        "description": "Very cheap, good for Chinese",
-        "requires_key": True,
-        "key_name": "DEEPSEEK_API_KEY",
-        "key_url": "https://platform.deepseek.com/"
     },
     "ollama": {
         "name": "Ollama (Local)",
@@ -144,6 +149,21 @@ def setup_copilot_oauth() -> bool:
         return True
     except CopilotAuthError as e:
         print(f"\n  ❌ Copilot login failed: {e}")
+        return False
+
+
+def setup_chatgpt_oauth() -> bool:
+    """Run ChatGPT OAuth flow."""
+    print("\n  Starting ChatGPT login...")
+    print("  A browser window will open. Log in with your OpenAI account.")
+
+    try:
+        from .auth.openai_codex import openai_codex_login, OpenAICodexAuthError
+        openai_codex_login()
+        print("\n  ✅ ChatGPT authorized successfully!")
+        return True
+    except Exception as e:
+        print(f"\n  ❌ ChatGPT login failed: {e}")
         return False
 
 
@@ -273,10 +293,15 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
     print(f"\n  ✅ Selected: {llm_info['name']}")
 
     if llm_info.get("requires_oauth"):
-        if llm_provider == "copilot":
+        oauth_type = llm_info["requires_oauth"]
+        if oauth_type == "copilot":
             success = setup_copilot_oauth()
             if not success:
-                print("  Falling back to manual setup. You can run 'subgen auth login copilot' later.")
+                print("  Falling back to manual setup. Run 'subgen auth login copilot' later.")
+        elif oauth_type == "chatgpt":
+            success = setup_chatgpt_oauth()
+            if not success:
+                print("  Falling back to manual setup. Run 'subgen auth login chatgpt' later.")
     elif llm_info.get("requires_key"):
         key = get_api_key(llm_info)
         config["llm"]["api_key"] = key
@@ -291,6 +316,10 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
         config["llm"]["model"] = "deepseek-chat"
     elif llm_provider == "claude":
         config["llm"]["model"] = "claude-3-haiku-20240307"
+    elif llm_provider == "chatgpt":
+        config["llm"]["model"] = "gpt-4o"
+    elif llm_provider == "copilot":
+        config["llm"]["model"] = "gpt-4o"
 
     # Step 3: Target language
     print("\n" + "-" * 50)
