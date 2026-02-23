@@ -1305,7 +1305,7 @@ def _get_model_settings(config: Dict[str, Any]) -> Dict[str, int]:
     elif provider == 'deepseek':
         model = config.get('translation', {}).get('deepseek_model', 'deepseek-chat')
     elif provider == 'chatgpt':
-        model = config.get('translation', {}).get('chatgpt_model', 'gpt-5.3-codex')
+        model = config.get('translation', {}).get('model', 'gpt-5.3-codex')
     elif provider == 'ollama':
         model = 'ollama'  # Use conservative defaults for all Ollama models
     elif provider == 'copilot':
@@ -1487,7 +1487,7 @@ def _call_llm_for_proofread(
             openai_codex_login()
             access_token, account_id = get_openai_codex_token()
         
-        model = config.get('translation', {}).get('chatgpt_model', 'gpt-5.3-codex')
+        model = config.get('translation', {}).get('model', 'gpt-5.3-codex')
         debug("_call_llm_for_proofread: chatgpt model=%s", model)
         
         response = requests.post(
