@@ -297,6 +297,59 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
             console.print(f"   [dim]Use --force-transcribe to re-process[/dim]")
             console.print()
 
+    # Check for embedded subtitles (skip if using cache)
+    embedded_subtitle_path = None
+    use_embedded = False
+    
+    if not cached_transcription and not force_transcribe:
+        from src.embedded import check_embedded_subtitles, extract_subtitle_track
+        
+        embed_check = check_embedded_subtitles(input_path, final_source_lang, final_target_lang)
+        
+        if embed_check['tracks']:
+            track_list = ", ".join([
+                f"{t.language or 'und'}({t.codec})" for t in embed_check['tracks']
+            ])
+            console.print(f"[green]📀 Found embedded subtitles: {track_list}[/green]")
+        
+        if embed_check['action'] == 'use_target':
+            # Target language already exists - just extract it
+            console.print(f"   [bold green]✓ Target language ({final_target_lang}) already exists![/bold green]")
+            track = embed_check['track']
+            extracted_path = input_path.parent / f"{input_path.stem}_{final_target_lang}_extracted.srt"
+            result = extract_subtitle_track(input_path, track, extracted_path)
+            if result:
+                # Copy to output path
+                import shutil
+                shutil.copy(result, output_path)
+                console.print(f"\n[bold green]✅ Done![/bold green]")
+                console.print(f"Subtitle file: [cyan]{output_path}[/cyan]")
+                console.print(f"[dim]Extracted from embedded {track.language} subtitle[/dim]")
+                # Clean up temp file
+                if extracted_path != output_path:
+                    extracted_path.unlink(missing_ok=True)
+                return
+            else:
+                console.print(f"   [yellow]⚠️  Failed to extract, falling back to Whisper[/yellow]")
+        
+        elif embed_check['action'] == 'use_source':
+            # Use embedded subtitle as source for translation
+            track = embed_check['track']
+            console.print(f"   [cyan]Using {track.language or 'embedded'} subtitle as source (skipping Whisper)[/cyan]")
+            embedded_subtitle_path = input_path.parent / f"{input_path.stem}_embedded_source.srt"
+            result = extract_subtitle_track(input_path, track, embedded_subtitle_path)
+            if result:
+                use_embedded = True
+                # Update source language if detected from subtitle
+                if track.language:
+                    cfg['output']['source_language'] = track.language
+                    final_source_lang = track.language
+            else:
+                console.print(f"   [yellow]⚠️  Failed to extract, falling back to Whisper[/yellow]")
+                embedded_subtitle_path = None
+        
+        console.print()
+
     try:
         with Progress(
             SpinnerColumn(),
@@ -312,7 +365,7 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                 progress.update(task_id, description=description)
                 progress.stop_task(task_id)
 
-            # Step 1 & 2: Extract audio and transcribe (or use cache)
+            # Step 1 & 2: Extract audio and transcribe (or use cache/embedded)
             if cached_transcription:
                 # Use cached transcription
                 task_cache = progress.add_task("[green]✓ Using cached transcription", total=None)
@@ -343,6 +396,56 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                 if not source_lang and cached_transcription.get('source_lang'):
                     cfg['whisper']['source_language'] = cached_transcription['source_lang']
                     cfg['output']['source_language'] = cached_transcription['source_lang']
+            
+            elif use_embedded and embedded_subtitle_path:
+                # Use embedded subtitle as source
+                task_embed = progress.add_task("[cyan]Loading embedded subtitle...", total=None)
+                from src.subtitle import load_srt
+                from src.transcribe import Segment
+                
+                srt_segments = load_srt(embedded_subtitle_path)
+                # Convert to our Segment format
+                segments = []
+                for seg in srt_segments:
+                    segments.append(Segment(
+                        start=seg.start,
+                        end=seg.end,
+                        text=seg.text,
+                        translated='',
+                        no_speech_prob=0.0,
+                        avg_logprob=0.0
+                    ))
+                
+                complete_task(task_embed, f"[green]✓ Loaded embedded subtitle ({len(segments)} segments)")
+                
+                # Clean up temp file
+                try:
+                    embedded_subtitle_path.unlink(missing_ok=True)
+                except:
+                    pass
+                
+                # Save to cache for future runs
+                try:
+                    segments_data = [{
+                        'start': seg.start,
+                        'end': seg.end,
+                        'text': seg.text,
+                        'no_speech_prob': 0.0,
+                        'avg_logprob': 0.0
+                    } for seg in segments]
+                    
+                    save_cache(
+                        video_path=input_path,
+                        segments=segments_data,
+                        word_segments=None,
+                        whisper_provider='embedded',
+                        whisper_model='embedded',
+                        source_lang=final_source_lang
+                    )
+                except Exception as e:
+                    from src.logger import debug as log_debug
+                    log_debug("Failed to cache embedded subtitle: %s", e)
+            
             else:
                 # Step 1: Extract audio
                 task1 = progress.add_task("[cyan]Extracting audio...", total=None)
