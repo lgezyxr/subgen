@@ -264,7 +264,9 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                         seg_dict = {
                             'start': seg.start,
                             'end': seg.end,
-                            'text': seg.text
+                            'text': seg.text,
+                            'no_speech_prob': getattr(seg, 'no_speech_prob', 0.0),
+                            'avg_logprob': getattr(seg, 'avg_logprob', 0.0)
                         }
                         if hasattr(seg, 'words') and seg.words:
                             # Convert Word objects to dicts for JSON serialization

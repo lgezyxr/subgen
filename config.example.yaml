@@ -83,3 +83,8 @@ advanced:
 
   # Log level: DEBUG | INFO | WARNING | ERROR
   log_level: "INFO"
+
+  # Music/noise filtering (uses Whisper's no_speech_prob)
+  filter_music: true              # Enable automatic music/noise detection
+  no_speech_threshold: 0.6        # Skip segments with no_speech_prob above this
+  max_no_speech_duration: 30.0    # For long segments, use lower threshold (0.5)

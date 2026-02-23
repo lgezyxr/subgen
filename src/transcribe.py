@@ -24,6 +24,8 @@ class Segment:
     text: str         # Original text
     translated: str = ""  # Translated text
     words: List[Word] = field(default_factory=list)  # Word-level timestamps
+    no_speech_prob: float = 0.0  # Probability of no speech (0-1)
+    avg_logprob: float = 0.0  # Average log probability
 
 
 def merge_segments_by_sentence(segments: List[Segment], max_duration: float = 8.0) -> List[Segment]:
@@ -186,13 +188,38 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
     debug("transcribe_local: detected language=%s, probability=%.2f", 
           info.language, info.language_probability)
 
+    # Config for filtering
+    filter_music = config.get('advanced', {}).get('filter_music', True)
+    no_speech_threshold = config.get('advanced', {}).get('no_speech_threshold', 0.6)
+    max_no_speech_duration = config.get('advanced', {}).get('max_no_speech_duration', 30.0)
+
     segments = []
     segment_count = 0
+    skipped_count = 0
+    
     for seg in segments_iter:
         segment_count += 1
+        duration = seg.end - seg.start
+        no_speech_prob = getattr(seg, 'no_speech_prob', 0.0)
+        avg_logprob = getattr(seg, 'avg_logprob', 0.0)
+        
+        # Debug logging for first few and every 50th segment
         if segment_count <= 3 or segment_count % 50 == 0:
-            debug("transcribe_local: segment %d: [%.1f-%.1f] %s", 
-                  segment_count, seg.start, seg.end, seg.text[:50] if seg.text else "")
+            debug("transcribe_local: segment %d: [%.1f-%.1f] no_speech=%.2f logprob=%.2f %s", 
+                  segment_count, seg.start, seg.end, no_speech_prob, avg_logprob,
+                  seg.text[:40] if seg.text else "")
+        
+        # Filter likely music/noise segments
+        if filter_music:
+            # High no_speech_prob = likely not speech
+            if no_speech_prob > no_speech_threshold:
+                # For short segments, skip if very high no_speech_prob
+                # For long segments (likely OP/ED), also skip with moderate no_speech_prob
+                if no_speech_prob > 0.8 or (duration > max_no_speech_duration and no_speech_prob > 0.5):
+                    skipped_count += 1
+                    debug("transcribe_local: skipping segment %d (no_speech=%.2f, duration=%.1fs): %s",
+                          segment_count, no_speech_prob, duration, seg.text[:30] if seg.text else "")
+                    continue
         
         # Extract word-level timestamps
         words = []
@@ -208,10 +235,13 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
             start=seg.start,
             end=seg.end,
             text=seg.text.strip(),
-            words=words
+            words=words,
+            no_speech_prob=no_speech_prob,
+            avg_logprob=avg_logprob
         ))
     
-    debug("transcribe_local: completed, total %d segments", len(segments))
+    debug("transcribe_local: completed, total %d segments (%d skipped as music/noise)", 
+          len(segments), skipped_count)
 
     return segments
 
