@@ -1260,6 +1260,67 @@ PROOFREAD_USER_PROMPT = """Review and correct these {count} translations:
 """
 
 
+# Model-specific settings for proofreading
+MODEL_SETTINGS = {
+    # OpenAI models
+    'gpt-4o': {'batch_size': 50, 'context_chars': 15000},
+    'gpt-4o-mini': {'batch_size': 50, 'context_chars': 15000},
+    'gpt-4-turbo': {'batch_size': 50, 'context_chars': 15000},
+    'gpt-4': {'batch_size': 30, 'context_chars': 8000},
+    'gpt-3.5-turbo': {'batch_size': 20, 'context_chars': 4000},
+    # Claude models
+    'claude-3-opus': {'batch_size': 60, 'context_chars': 20000},
+    'claude-3-sonnet': {'batch_size': 60, 'context_chars': 20000},
+    'claude-3-haiku': {'batch_size': 40, 'context_chars': 12000},
+    'claude-sonnet-4': {'batch_size': 60, 'context_chars': 20000},
+    # DeepSeek
+    'deepseek-chat': {'batch_size': 40, 'context_chars': 10000},
+    'deepseek-coder': {'batch_size': 40, 'context_chars': 10000},
+    # ChatGPT (Codex API)
+    'gpt-5.1-codex-mini': {'batch_size': 50, 'context_chars': 15000},
+    # Ollama (conservative defaults)
+    'ollama': {'batch_size': 15, 'context_chars': 3000},
+    # Default fallback
+    'default': {'batch_size': 30, 'context_chars': 8000},
+}
+
+
+def _get_model_settings(config: Dict[str, Any]) -> Dict[str, int]:
+    """Get model-specific batch_size and context_chars for proofreading."""
+    provider = config.get('translation', {}).get('provider', 'openai')
+    
+    # Try to get model name from config
+    model = None
+    if provider == 'openai':
+        model = config.get('translation', {}).get('openai_model', 'gpt-4o')
+    elif provider == 'claude':
+        model = config.get('translation', {}).get('claude_model', 'claude-sonnet-4')
+    elif provider == 'deepseek':
+        model = config.get('translation', {}).get('deepseek_model', 'deepseek-chat')
+    elif provider == 'chatgpt':
+        model = config.get('translation', {}).get('chatgpt_model', 'gpt-5.1-codex-mini')
+    elif provider == 'ollama':
+        model = 'ollama'  # Use conservative defaults for all Ollama models
+    elif provider == 'copilot':
+        model = 'gpt-4o'  # Copilot uses GPT-4 class models
+    
+    # Look up settings
+    if model and model in MODEL_SETTINGS:
+        return MODEL_SETTINGS[model]
+    
+    # Try provider-level defaults
+    provider_defaults = {
+        'openai': MODEL_SETTINGS['gpt-4o'],
+        'claude': MODEL_SETTINGS['claude-sonnet-4'],
+        'deepseek': MODEL_SETTINGS['deepseek-chat'],
+        'chatgpt': MODEL_SETTINGS['gpt-5.1-codex-mini'],
+        'copilot': MODEL_SETTINGS['gpt-4o'],
+        'ollama': MODEL_SETTINGS['ollama'],
+    }
+    
+    return provider_defaults.get(provider, MODEL_SETTINGS['default'])
+
+
 def proofread_translations(
     segments: List[Segment],
     config: Dict[str, Any],
@@ -1286,19 +1347,22 @@ def proofread_translations(
     
     source_lang = config.get('output', {}).get('source_language', 'auto')
     target_lang = config.get('output', {}).get('target_language', 'zh')
-    batch_size = config.get('advanced', {}).get('proofread_batch_size', 30)
+    
+    # Get model-specific settings (can be overridden in config)
+    model_settings = _get_model_settings(config)
+    batch_size = config.get('advanced', {}).get('proofread_batch_size') or model_settings['batch_size']
+    max_context_chars = config.get('advanced', {}).get('proofread_context_chars') or model_settings['context_chars']
     
     # Build story context (all original text, no timestamps)
     story_lines = [seg.text for seg in segments if seg.text.strip()]
     story_context = '\n'.join(story_lines)
     
     # Truncate if too long (keep first and last parts for context)
-    max_context_chars = config.get('advanced', {}).get('proofread_context_chars', 8000)
     if len(story_context) > max_context_chars:
         half = max_context_chars // 2
         story_context = story_context[:half] + "\n...[truncated]...\n" + story_context[-half:]
     
-    debug("proofread: %d segments, context=%d chars, batch_size=%d", 
+    debug("proofread: %d segments, context=%d chars, batch_size=%d (model settings)", 
           len(segments), len(story_context), batch_size)
     
     # Get translation provider
