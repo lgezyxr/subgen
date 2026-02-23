@@ -630,7 +630,7 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
         
         access_token, account_id = get_openai_codex_token()
         # Codex API requires gpt-5.x-codex models, not gpt-4o
-        model = config.get('translation', {}).get('model', 'gpt-5.1-codex-mini')
+        model = config.get('translation', {}).get('model', 'gpt-5.3-codex')
         
         debug("chatgpt: using Codex Responses API, model=%s", model)
         
@@ -1284,7 +1284,7 @@ MODEL_SETTINGS = {
     'deepseek-chat': {'batch_size': 40, 'context_chars': 10000},
     'deepseek-coder': {'batch_size': 40, 'context_chars': 10000},
     # ChatGPT (Codex API)
-    'gpt-5.1-codex-mini': {'batch_size': 50, 'context_chars': 15000},
+    'gpt-5.3-codex': {'batch_size': 50, 'context_chars': 15000},
     # Ollama (conservative defaults)
     'ollama': {'batch_size': 15, 'context_chars': 3000},
     # Default fallback
@@ -1305,7 +1305,7 @@ def _get_model_settings(config: Dict[str, Any]) -> Dict[str, int]:
     elif provider == 'deepseek':
         model = config.get('translation', {}).get('deepseek_model', 'deepseek-chat')
     elif provider == 'chatgpt':
-        model = config.get('translation', {}).get('chatgpt_model', 'gpt-5.1-codex-mini')
+        model = config.get('translation', {}).get('chatgpt_model', 'gpt-5.3-codex')
     elif provider == 'ollama':
         model = 'ollama'  # Use conservative defaults for all Ollama models
     elif provider == 'copilot':
@@ -1320,7 +1320,7 @@ def _get_model_settings(config: Dict[str, Any]) -> Dict[str, int]:
         'openai': MODEL_SETTINGS['gpt-4o'],
         'claude': MODEL_SETTINGS['claude-sonnet-4'],
         'deepseek': MODEL_SETTINGS['deepseek-chat'],
-        'chatgpt': MODEL_SETTINGS['gpt-5.1-codex-mini'],
+        'chatgpt': MODEL_SETTINGS['gpt-5.3-codex'],
         'copilot': MODEL_SETTINGS['gpt-4o'],
         'ollama': MODEL_SETTINGS['ollama'],
     }
@@ -1487,7 +1487,7 @@ def _call_llm_for_proofread(
             openai_codex_login()
             access_token, account_id = get_openai_codex_token()
         
-        model = config.get('translation', {}).get('chatgpt_model', 'gpt-5.1-codex-mini')
+        model = config.get('translation', {}).get('chatgpt_model', 'gpt-5.3-codex')
         debug("_call_llm_for_proofread: chatgpt model=%s", model)
         
         response = requests.post(
