@@ -134,11 +134,27 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
     device = config['whisper'].get('device', 'cuda')
     source_lang = config['whisper'].get('source_language', None)
 
-    # Select compute type based on device
-    compute_type = "float16" if device == "cuda" else "int8"
+    # Select compute type (can be overridden in config)
+    # float16 is fastest but not supported on older GPUs (Pascal/GTX 10xx)
+    compute_type = config['whisper'].get('compute_type', None)
+    
+    if compute_type is None:
+        if device == "cpu":
+            compute_type = "int8"
+        else:
+            # Try float16 first, fallback to float32 for older GPUs
+            compute_type = "float16"
 
-    # Load model
-    model = WhisperModel(model_name, device=device, compute_type=compute_type)
+    # Load model with fallback for older GPUs
+    try:
+        model = WhisperModel(model_name, device=device, compute_type=compute_type)
+    except ValueError as e:
+        if "float16" in str(e) and compute_type == "float16":
+            print("  ⚠️  GPU doesn't support float16, using float32...")
+            compute_type = "float32"
+            model = WhisperModel(model_name, device=device, compute_type=compute_type)
+        else:
+            raise
 
     # Transcription options
     transcribe_opts = {
