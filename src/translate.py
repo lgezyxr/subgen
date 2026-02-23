@@ -585,7 +585,8 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
         import platform
         
         access_token, account_id = get_openai_codex_token()
-        model = config.get('translation', {}).get('model', 'gpt-4o')
+        # Codex API requires gpt-5.x-codex models, not gpt-4o
+        model = config.get('translation', {}).get('model', 'gpt-5.1-codex-mini')
         
         debug("chatgpt: using Codex Responses API, model=%s", model)
         

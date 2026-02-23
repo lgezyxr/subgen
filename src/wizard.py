@@ -317,7 +317,7 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
     elif llm_provider == "claude":
         config["llm"]["model"] = "claude-3-haiku-20240307"
     elif llm_provider == "chatgpt":
-        config["llm"]["model"] = "auto"  # Let ChatGPT pick best available
+        config["llm"]["model"] = "gpt-5.1-codex-mini"  # Codex API requires gpt-5.x-codex models
     elif llm_provider == "copilot":
         config["llm"]["model"] = "gpt-4o-mini"
 
