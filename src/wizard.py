@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from .auth.copilot import copilot_login, CopilotAuthError
+from .hardware import detect_hardware, recommend_whisper_config, print_hardware_summary, get_install_instructions
 
 
 # Provider definitions
@@ -15,7 +16,6 @@ WHISPER_PROVIDERS = {
         "requires_key": True,
         "key_name": "GROQ_API_KEY",
         "key_url": "https://console.groq.com/keys",
-        "recommended": True
     },
     "mlx": {
         "name": "MLX (Apple Silicon)",
@@ -155,6 +155,21 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
         dict with configuration values
     """
     print_header()
+    
+    # Auto-detect hardware
+    print("Detecting hardware...")
+    hw = detect_hardware()
+    print_hardware_summary(hw)
+    
+    # Get recommended config
+    rec_provider, rec_device, rec_model = recommend_whisper_config(hw)
+    
+    # Check if dependencies are installed
+    install_cmd = get_install_instructions(hw)
+    if install_cmd:
+        print(f"📦 To use local processing, install:")
+        print(f"   {install_cmd}")
+        print()
 
     config = {
         "whisper": {},
@@ -167,7 +182,19 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
     }
 
     # Step 1: Whisper provider
+    # Mark recommended provider
+    for key in WHISPER_PROVIDERS:
+        WHISPER_PROVIDERS[key]["recommended"] = (key == rec_provider)
+    
     print_provider_options(WHISPER_PROVIDERS, "📢 Speech Recognition (Whisper)")
+    
+    # Show auto-detected recommendation
+    print(f"  💡 Auto-detected recommendation: {rec_provider}")
+    if rec_provider == "local" and hw.nvidia_vram_gb:
+        print(f"     (GPU: {hw.nvidia_gpu_name}, {hw.nvidia_vram_gb:.0f}GB VRAM → {rec_model})")
+    elif rec_provider == "mlx":
+        print(f"     (Apple Silicon detected)")
+    print()
 
     whisper_keys = list(WHISPER_PROVIDERS.keys())
     whisper_choice = get_choice("Select speech recognition", len(whisper_keys))
@@ -182,9 +209,18 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
         config["whisper"][f"{whisper_provider}_key"] = key
 
     if whisper_provider == "local":
-        config["whisper"]["local_model"] = "large-v3"
+        # Use auto-detected model if available
+        if hw.has_nvidia_gpu and hw.nvidia_vram_gb:
+            model = rec_model
+        else:
+            model = "large-v3"
+        config["whisper"]["local_model"] = model
         config["whisper"]["device"] = "cuda"
-        print("  ℹ️  Using large-v3 model with CUDA. Edit config.yaml to change.")
+        print(f"  ℹ️  Using {model} model with CUDA.")
+    
+    if whisper_provider == "mlx":
+        config["whisper"]["local_model"] = "large-v3"
+        print(f"  ℹ️  Using large-v3 model with MLX.")
 
     # Step 2: LLM provider
     print("\n" + "-" * 50)
