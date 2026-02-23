@@ -2,7 +2,7 @@
 
 > Local AI subtitle generator: Video → Speech Recognition → Translation → Subtitles
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://github.com/lgezyxr/subgen/actions/workflows/test.yml/badge.svg)](https://github.com/lgezyxr/subgen/actions/workflows/test.yml)
 
@@ -11,12 +11,11 @@
 ## ✨ Features
 
 - 🎯 **One-click subtitle generation**: Drop in a video, get SRT subtitles
-- 🔊 **Speech recognition**: Local Whisper or cloud APIs (OpenAI, Groq)
-- 🌍 **Smart translation**: Multiple LLMs (OpenAI, Claude, DeepSeek, Ollama)
+- 🔊 **Speech recognition**: Local Whisper, MLX (Apple Silicon), or cloud APIs
+- 🌍 **Smart translation**: Multiple LLMs (OpenAI, Claude, DeepSeek, Ollama, ChatGPT Plus, Copilot)
+- 🎯 **Sentence-aware translation**: Groups sentences for better context and timing
 - 📝 **Bilingual subtitles**: Optional original + translated dual output
-- 🔄 **Language switching**: Easy source/target language switching via CLI
-- 📋 **Translation rules**: Language-specific professional translation rules (see `rules/`)
-- 🔒 **Privacy-friendly**: Video files never leave your machine
+- 🔒 **OAuth support**: Use ChatGPT Plus or GitHub Copilot subscriptions (no API key needed)
 - 💰 **Cost transparent**: Use your own API keys, costs are predictable
 
 ## 🚀 Quick Start
@@ -34,52 +33,46 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
-
-# (Optional) Install local Whisper support
-pip install faster-whisper
 ```
 
-### Configuration
-
-Copy the config template and add your API keys:
+### Setup (Interactive Wizard)
 
 ```bash
-cp config.example.yaml config.yaml
+python subgen.py init
 ```
 
-Edit `config.yaml`:
-
-```yaml
-whisper:
-  provider: "openai"  # local | openai | groq
-  openai_key: "sk-your-key-here"
-
-translation:
-  provider: "openai"
-  model: "gpt-4o-mini"
-  api_key: "sk-your-key-here"
-```
+This will guide you through:
+- Choosing Whisper provider (local/mlx/openai/groq)
+- Choosing LLM provider (openai/claude/deepseek/ollama/chatgpt/copilot)
+- Setting up API keys or OAuth login
 
 ### Usage
 
 ```bash
 # Basic usage (auto-detect source, translate to Chinese)
-python subgen.py video.mp4
+python subgen.py run video.mp4 --to zh
 
 # Specify source and target language
-python subgen.py video.mp4 --from en --to zh
+python subgen.py run video.mp4 --from en --to zh
 
-# Spanish to Japanese
-python subgen.py video.mp4 -f es -t ja
+# Use sentence-aware translation (recommended for better quality)
+python subgen.py run video.mp4 -s --to zh
+
+# Transcription only (no translation)
+python subgen.py run video.mp4 --no-translate
 
 # Generate bilingual subtitles
-python subgen.py video.mp4 --from en --to zh --bilingual
+python subgen.py run video.mp4 --from en --to zh --bilingual
 
-# Use local Whisper
-python subgen.py video.mp4 --whisper-provider local
+# Apple Silicon: use MLX Whisper
+python subgen.py run video.mp4 --whisper-provider mlx --to zh
+
+# Use ChatGPT Plus subscription
+python subgen.py auth login chatgpt
+python subgen.py run video.mp4 --llm-provider chatgpt --to zh
 
 # View all options
-python subgen.py --help
+python subgen.py run --help
 ```
 
 ## 📖 Documentation
@@ -94,73 +87,72 @@ python subgen.py --help
 
 ### Speech Recognition (Whisper)
 
-| Provider | Cost | Speed | Notes |
-|----------|------|-------|-------|
-| Local (faster-whisper) | Free | Depends on GPU | Requires 4GB+ VRAM |
-| OpenAI Whisper API | $0.006/min | Fast | Most stable |
-| Groq | Free tier available | **Very fast** | Recommended |
+| Provider | Platform | Cost | Notes |
+|----------|----------|------|-------|
+| MLX | Apple Silicon | Free | **Recommended for M1/M2/M3 Macs** |
+| Local (faster-whisper) | NVIDIA GPU | Free | Requires 4GB+ VRAM |
+| OpenAI Whisper API | Any | $0.006/min | Most stable |
+| Groq | Any | Free tier | Very fast |
 
 ### Translation (LLM)
 
-| Provider | Recommended Model | Cost | Notes |
-|----------|-------------------|------|-------|
-| OpenAI | gpt-4o-mini | ~$0.15/M tokens | Best value |
-| OpenAI | gpt-4o | ~$2.5/M tokens | Highest quality |
-| Claude | claude-3-haiku | ~$0.25/M tokens | Fast |
-| DeepSeek | deepseek-chat | ~¥1/M tokens | Chinese optimized |
-| Ollama | qwen2.5:14b | Free | Requires local deployment |
+| Provider | Auth Method | Cost | Notes |
+|----------|-------------|------|-------|
+| ChatGPT Plus | OAuth login | Subscription | **Use your existing subscription!** |
+| GitHub Copilot | OAuth login | Subscription | Use your existing subscription |
+| DeepSeek | API key | ~¥1/M tokens | Chinese optimized, free credits |
+| OpenAI | API key | ~$0.15/M tokens | gpt-4o-mini recommended |
+| Claude | API key | ~$0.25/M tokens | Fast |
+| Ollama | Local | Free | Fully offline |
+
+## 🔐 OAuth Login (No API Key Needed)
+
+If you have ChatGPT Plus/Pro or GitHub Copilot subscription:
+
+```bash
+# Login with ChatGPT (browser will open)
+python subgen.py auth login chatgpt
+
+# Login with GitHub Copilot
+python subgen.py auth login copilot
+
+# Check login status
+python subgen.py auth status
+```
 
 ## 💡 Examples
 
-### Translate a Movie
+### Best Quality (Sentence-Aware + Word-Aligned)
 
 ```bash
-# 2-hour movie using cloud services
-python subgen.py "Inception.2010.mkv" --from en --to zh --bilingual
-
-# Estimated cost:
-# - Whisper API: 120 min × $0.006 = $0.72
-# - GPT-4o-mini: ~$0.05
-# - Total: ~$0.77
+# -s enables sentence-aware translation with word-level timing
+python subgen.py run movie.mp4 -s --whisper-provider mlx --to zh
 ```
+
+This mode:
+1. Groups split sentences for coherent translation
+2. Uses word-level timestamps for precise subtitle timing
+3. Lets LLM decide natural Chinese break points
 
 ### Batch Processing
 
 ```bash
 # Process entire folder
-python subgen.py ./videos/ --to zh
+for f in ./videos/*.mp4; do
+  python subgen.py run "$f" -s --to zh
+done
 ```
 
-## 🏗️ Project Structure
+## 🏗️ CLI Structure
 
-```
-subgen/
-├── subgen.py           # Main entry point
-├── config.yaml         # User config
-├── config.example.yaml # Config template
-├── requirements.txt    # Python dependencies
-├── rules/              # Translation rules by language
-│   ├── zh.md           # Chinese translation rules
-│   ├── ja.md           # Japanese translation rules
-│   └── default.md      # Default rules for other languages
-│
-├── src/
-│   ├── __init__.py
-│   ├── audio.py        # Audio extraction
-│   ├── config.py       # Config loading
-│   ├── transcribe.py   # Speech recognition
-│   ├── translate.py    # Translation
-│   └── subtitle.py     # Subtitle generation
-│
-├── docs/               # Documentation
-│   ├── installation.md
-│   ├── configuration.md
-│   ├── providers.md
-│   ├── roadmap.md
-│   └── faq.md
-│
-└── tests/              # Unit tests
-    └── ...
+```bash
+subgen.py
+├── run <video>     # Generate subtitles
+├── init            # Setup wizard
+└── auth
+    ├── login       # OAuth login (chatgpt/copilot)
+    ├── logout      # Logout
+    └── status      # Check auth status
 ```
 
 ## 🤝 Contributing
@@ -170,12 +162,6 @@ Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 ## 📄 License
 
 MIT License - see [LICENSE](LICENSE)
-
-## 🙏 Acknowledgments
-
-- [OpenAI Whisper](https://github.com/openai/whisper) - Speech recognition model
-- [faster-whisper](https://github.com/SYSTRAN/faster-whisper) - Efficient Whisper implementation
-- All API providers
 
 ---
 
