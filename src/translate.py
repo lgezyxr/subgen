@@ -1487,26 +1487,51 @@ def _call_llm_for_proofread(
             json={
                 "model": model,
                 "store": False,
-                "stream": False,
+                "stream": True,
                 "instructions": system_prompt,
                 "input": [{"role": "user", "content": user_prompt}]
             },
-            timeout=180
+            timeout=180,
+            stream=True
         )
         
         debug("_call_llm_for_proofread: chatgpt response status=%d", response.status_code)
         
         if not response.ok:
-            raise ValueError(f"ChatGPT API error: {response.status_code} - {response.text[:200]}")
+            error_text = response.text[:200] if hasattr(response, 'text') else str(response.content[:200])
+            raise ValueError(f"ChatGPT API error: {response.status_code} - {error_text}")
         
-        data = response.json()
-        # Parse response - format: {"output": [{"content": [{"text": "..."}]}]}
-        output = data.get('output', [])
-        if output and len(output) > 0:
-            content = output[0].get('content', [])
-            if content and len(content) > 0:
-                return content[0].get('text', '')
-        return ''
+        # Parse SSE stream
+        result_text = ""
+        for line in response.iter_lines():
+            if not line:
+                continue
+            line = line.decode('utf-8')
+            if line.startswith('data: '):
+                data = line[6:]
+                if data == '[DONE]':
+                    break
+                try:
+                    event = json.loads(data)
+                    # Handle different event types
+                    event_type = event.get('type', '')
+                    if event_type == 'response.output_text.delta':
+                        delta = event.get('delta', '')
+                        result_text += delta
+                    elif event_type == 'response.completed':
+                        # Final response - extract full text
+                        output = event.get('response', {}).get('output', [])
+                        if output:
+                            for item in output:
+                                if item.get('type') == 'message':
+                                    content = item.get('content', [])
+                                    for c in content:
+                                        if c.get('type') == 'output_text':
+                                            result_text = c.get('text', result_text)
+                except json.JSONDecodeError:
+                    continue
+        
+        return result_text
     
     elif provider == 'openai':
         api_key = config.get('translation', {}).get('openai_api_key', '')
