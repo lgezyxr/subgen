@@ -259,12 +259,14 @@ def add_subtitle_track(
         raise RuntimeError(f"Failed to add subtitle track: {result.stderr}")
 
 
-def load_srt(srt_path: Path) -> List:
+def load_srt(srt_path: Path, bilingual: bool = False) -> List:
     """
     Load an existing SRT file and return segments.
 
     Args:
         srt_path: Path to the SRT file
+        bilingual: If True, treat multi-line as original/translated pair.
+                   If False (default), keep all lines as original text.
 
     Returns:
         List of Segment objects with text (original) and translated fields
@@ -305,16 +307,16 @@ def load_srt(srt_path: Path) -> List:
         text_lines = lines[2:]
         text = '\n'.join(text_lines)
 
-        # For bilingual subtitles, split into original and translated
-        # Format: "original\ntranslated" or just "translated"
-        if '\n' in text:
+        if bilingual and '\n' in text:
+            # For bilingual subtitles, split into original and translated
+            # Format: "original\ntranslated"
             parts = text.split('\n', 1)
             original = parts[0]
             translated = parts[1] if len(parts) > 1 else parts[0]
         else:
-            # Single line - treat as translated (we don't have original)
+            # Keep all lines as original text (for source subtitles)
             original = text
-            translated = text
+            translated = ''
 
         segments.append(Segment(
             start=start,

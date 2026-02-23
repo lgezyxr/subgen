@@ -93,3 +93,50 @@ class TestFFmpegPathEscaping:
         """Unix paths only escape colon (if any)"""
         result = _escape_ffmpeg_filter_path("/home/user/video.srt")
         assert result == "/home/user/video.srt"
+
+
+class TestLoadSrtMultiline:
+    """Tests for loading SRT files with multi-line subtitles."""
+
+    def test_multiline_preserved(self, tmp_path):
+        """Multi-line subtitles should be kept together as original text."""
+        srt_content = """1
+00:00:01,000 --> 00:00:04,000
+BERTRAM GILFOYLE:
+Is that our P2P protocol?
+
+2
+00:00:05,000 --> 00:00:08,000
+-Yeah, I'm just hacking for fun.
+-Videochat?
+"""
+        srt_file = tmp_path / "test.srt"
+        srt_file.write_text(srt_content)
+
+        from src.subtitle import load_srt
+        segments = load_srt(srt_file)
+
+        assert len(segments) == 2
+        # Multi-line should be preserved with newline
+        assert segments[0].text == "BERTRAM GILFOYLE:\nIs that our P2P protocol?"
+        assert segments[1].text == "-Yeah, I'm just hacking for fun.\n-Videochat?"
+        # translated should be empty (not split from text)
+        assert segments[0].translated == ""
+        assert segments[1].translated == ""
+
+    def test_bilingual_mode(self, tmp_path):
+        """In bilingual mode, first line = original, second = translated."""
+        srt_content = """1
+00:00:01,000 --> 00:00:04,000
+Hello
+你好
+"""
+        srt_file = tmp_path / "test.srt"
+        srt_file.write_text(srt_content)
+
+        from src.subtitle import load_srt
+        segments = load_srt(srt_file, bilingual=True)
+
+        assert len(segments) == 1
+        assert segments[0].text == "Hello"
+        assert segments[0].translated == "你好"

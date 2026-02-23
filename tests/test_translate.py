@@ -73,3 +73,23 @@ class TestParseTranslations:
         assert result[0] == ""
         assert result[1] == "Hello"
         assert result[2] == "World"
+
+
+class TestNormalizeTextForLlm:
+    """Tests for text normalization before LLM translation."""
+
+    def test_newline_replaced(self):
+        from src.translate import _normalize_text_for_llm
+        assert _normalize_text_for_llm("Line1\nLine2") == "Line1 Line2"
+
+    def test_multiple_newlines(self):
+        from src.translate import _normalize_text_for_llm
+        assert _normalize_text_for_llm("A\nB\nC") == "A B C"
+
+    def test_no_newline(self):
+        from src.translate import _normalize_text_for_llm
+        assert _normalize_text_for_llm("Single line") == "Single line"
+
+    def test_whitespace_stripped(self):
+        from src.translate import _normalize_text_for_llm
+        assert _normalize_text_for_llm("  text  ") == "text"

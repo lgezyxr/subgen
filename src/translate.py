@@ -8,6 +8,14 @@ from typing import Dict, Any, List, Callable, Optional
 from .transcribe import Segment
 
 
+def _normalize_text_for_llm(text: str) -> str:
+    """
+    Normalize text for LLM input - replace newlines with spaces.
+    This prevents multi-line subtitles from being counted as multiple items.
+    """
+    return text.replace('\n', ' ').strip()
+
+
 # Base translation system prompt
 TRANSLATION_SYSTEM_PROMPT_BASE = """You are a professional subtitle translator. Your task is to translate {source_lang} subtitles into {target_lang}.
 
@@ -863,7 +871,7 @@ def _translate_openai(
 
     user_prompt = TRANSLATION_USER_PROMPT.format(
         count=len(texts),
-        subtitles="\n".join(texts)
+        subtitles="\n".join(_normalize_text_for_llm(t) for t in texts)
     )
 
     response = client.chat.completions.create(
@@ -907,7 +915,7 @@ def _translate_claude(
 
     user_prompt = TRANSLATION_USER_PROMPT.format(
         count=len(texts),
-        subtitles="\n".join(texts)
+        subtitles="\n".join(_normalize_text_for_llm(t) for t in texts)
     )
 
     response = client.messages.create(
@@ -954,7 +962,7 @@ def _translate_deepseek(
 
     user_prompt = TRANSLATION_USER_PROMPT.format(
         count=len(texts),
-        subtitles="\n".join(texts)
+        subtitles="\n".join(_normalize_text_for_llm(t) for t in texts)
     )
 
     response = client.chat.completions.create(
@@ -992,7 +1000,7 @@ def _translate_ollama(
 
     user_prompt = TRANSLATION_USER_PROMPT.format(
         count=len(texts),
-        subtitles="\n".join(texts)
+        subtitles="\n".join(_normalize_text_for_llm(t) for t in texts)
     )
 
     try:
@@ -1053,7 +1061,7 @@ def _translate_copilot(
 
     user_prompt = TRANSLATION_USER_PROMPT.format(
         count=len(texts),
-        subtitles="\n".join(texts)
+        subtitles="\n".join(_normalize_text_for_llm(t) for t in texts)
     )
 
     # Call Copilot API (OpenAI-compatible)
@@ -1132,7 +1140,7 @@ def _translate_chatgpt(
 
     user_prompt = TRANSLATION_USER_PROMPT.format(
         count=len(texts),
-        subtitles="\n".join(texts)
+        subtitles="\n".join(_normalize_text_for_llm(t) for t in texts)
     )
 
     # Get model from config, default to gpt-4o
