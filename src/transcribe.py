@@ -138,6 +138,13 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
             "Local Whisper requires faster-whisper:\n"
             "pip install faster-whisper"
         )
+    
+    import gc
+    try:
+        import torch
+        has_torch = True
+    except ImportError:
+        has_torch = False
 
     model_name = config['whisper'].get('local_model', 'large-v3')
     device = config['whisper'].get('device', 'cuda')
@@ -242,6 +249,17 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
     
     debug("transcribe_local: completed, total %d segments (%d skipped as music/noise)", 
           len(segments), skipped_count)
+
+    # Explicitly release GPU memory
+    debug("transcribe_local: releasing GPU memory...")
+    del model
+    gc.collect()
+    try:
+        if has_torch and device == 'cuda' and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception as e:
+        debug("transcribe_local: could not clear CUDA cache: %s", e)
+    debug("transcribe_local: GPU memory released")
 
     return segments
 
