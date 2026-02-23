@@ -181,7 +181,9 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
         # Add language suffix: video.mp4 -> video_zh.srt
         suffix = cfg['output'].get('format', 'srt')
         lang_suffix = f"_{final_target_lang}" if not no_translate else ""
-        output_path = input_path.parent / f"{input_path.stem}{lang_suffix}.{suffix}"
+        # Add .proofread suffix for proofread-only mode
+        proofread_suffix = ".proofread" if proofread_only else ""
+        output_path = input_path.parent / f"{input_path.stem}{lang_suffix}{proofread_suffix}.{suffix}"
 
     console.print("\n[bold blue]🎬 SubGen - AI Subtitle Generator[/bold blue]\n")
     console.print(f"Input: [cyan]{input_path}[/cyan]")
