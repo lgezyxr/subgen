@@ -207,20 +207,53 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
     if proofread_only:
         from src.subtitle import load_srt, generate_subtitle
         from src.translate import proofread_translations
+        from src.transcribe import Segment, Word
+        from src.cache import load_cache
         
-        # Look for existing subtitle file
-        existing_srt = input_path.parent / f"{input_path.stem}_zh.srt"
-        if not existing_srt.exists():
-            existing_srt = input_path.with_suffix('.srt')
+        segments = None
         
-        if not existing_srt.exists():
-            console.print(f"[red]Error: No existing subtitle file found[/red]")
-            console.print(f"[dim]Looked for: {existing_srt}[/dim]")
-            raise SystemExit(1)
+        # First try to load from cache (has both original + translated)
+        cached = load_cache(input_path)
+        if cached and cached.get('segments'):
+            # Check if cache has translations
+            has_translations = any(seg.get('translated') for seg in cached['segments'])
+            if has_translations:
+                console.print(f"[green]📂 Loading from cache (with translations)[/green]")
+                segments = []
+                for seg_data in cached['segments']:
+                    seg = Segment(
+                        start=seg_data['start'],
+                        end=seg_data['end'],
+                        text=seg_data['text'],
+                        translated=seg_data.get('translated', ''),
+                        no_speech_prob=seg_data.get('no_speech_prob', 0.0),
+                        avg_logprob=seg_data.get('avg_logprob', 0.0)
+                    )
+                    if 'words' in seg_data and seg_data['words']:
+                        seg.words = [
+                            Word(text=w['text'], start=w['start'], end=w['end'])
+                            for w in seg_data['words']
+                        ]
+                    segments.append(seg)
+                console.print(f"   Loaded {len(segments)} segments with translations")
         
-        console.print(f"[green]📂 Loading existing subtitles: {existing_srt.name}[/green]")
-        segments = load_srt(existing_srt)
-        console.print(f"   Loaded {len(segments)} segments")
+        # If no cache with translations, try .srt file
+        if not segments:
+            existing_srt = input_path.parent / f"{input_path.stem}_{final_target_lang}.srt"
+            if not existing_srt.exists():
+                existing_srt = input_path.with_suffix('.srt')
+            
+            if existing_srt.exists():
+                console.print(f"[yellow]⚠️  Loading from .srt (no original text for context)[/yellow]")
+                console.print(f"   File: {existing_srt.name}")
+                segments = load_srt(existing_srt)
+                console.print(f"   Loaded {len(segments)} segments")
+                console.print(f"   [dim]Note: Proofreading without original text is less effective[/dim]")
+            else:
+                console.print(f"[red]Error: No cache or subtitle file found[/red]")
+                console.print(f"[dim]Run translation first: subgen run video.mp4 -s --to zh[/dim]")
+                raise SystemExit(1)
+        
         console.print()
         
         with Progress(
@@ -391,6 +424,38 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                         progress_callback=lambda n: progress.update(task3, advance=n)
                     )
                 complete_task(task3, "[green]✓ Translation complete")
+                
+                # Save cache with translations for later proofreading
+                try:
+                    from src.logger import debug as log_debug
+                    segments_data = []
+                    for seg in translated_segments:
+                        seg_dict = {
+                            'start': seg.start,
+                            'end': seg.end,
+                            'text': seg.text,
+                            'translated': getattr(seg, 'translated', ''),
+                            'no_speech_prob': getattr(seg, 'no_speech_prob', 0.0),
+                            'avg_logprob': getattr(seg, 'avg_logprob', 0.0)
+                        }
+                        if hasattr(seg, 'words') and seg.words:
+                            seg_dict['words'] = [
+                                {'text': w.text, 'start': w.start, 'end': w.end}
+                                for w in seg.words
+                            ]
+                        segments_data.append(seg_dict)
+                    
+                    save_cache(
+                        video_path=input_path,
+                        segments=segments_data,
+                        word_segments=None,
+                        whisper_provider=cfg['whisper'].get('provider', 'local'),
+                        whisper_model=cfg['whisper'].get('local_model', 'large-v3'),
+                        source_lang=cfg['whisper'].get('source_language', 'auto')
+                    )
+                    log_debug("main: cache updated with translations")
+                except Exception as e:
+                    pass  # Cache update failure is not fatal
                 
                 # Step 3.5: Proofreading (optional)
                 if proofread:
