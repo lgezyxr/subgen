@@ -34,16 +34,33 @@ translation:
   provider: "copilot"
 
   # Model selection (depends on provider)
-  # For Copilot:
-  model: "claude-sonnet-4"   # Default for Copilot (balanced)
-  # model: "claude-opus-4"   # Best quality (Copilot)
-  # model: "gpt-4o"          # GPT-4o (Copilot)
-  # model: "o3-mini"         # Fast reasoning (Copilot)
-  # For OpenAI:
-  # model: "gpt-4o-mini"     # Best value
-  # model: "gpt-4o"          # Best quality
+  # 
+  # For Copilot (GitHub Copilot subscription):
+  #   Claude:
+  model: "claude-sonnet-4"     # Default, balanced
+  #   model: "claude-sonnet-4.5"  # Newer Sonnet
+  #   model: "claude-opus-4.5"    # Best quality
+  #   model: "claude-haiku-4.5"   # Fast & cheap
+  #   GPT:
+  #   model: "gpt-4o"             # GPT-4o
+  #   model: "gpt-5"              # GPT-5
+  #   model: "gpt-5.1"            # GPT-5.1
+  #   model: "gpt-5.2"            # GPT-5.2 (best GPT)
+  #   Gemini:
+  #   model: "gemini-2.5-pro"     # Gemini 2.5 Pro
+  #   model: "gemini-3-flash"     # Fast
+  #   model: "gemini-3-pro"       # Quality
+  #   Reasoning:
+  #   model: "o1-mini"            # Fast reasoning
+  #   model: "o1-preview"         # Better reasoning
+  #   model: "o3-mini"            # Newest reasoning
+  #
+  # For OpenAI API:
+  #   model: "gpt-4o-mini"        # Best value
+  #   model: "gpt-4o"             # Best quality
+  #
   # For DeepSeek:
-  # model: "deepseek-chat"   # Chinese optimized
+  #   model: "deepseek-chat"      # Chinese optimized
 
   # API configuration
   api_key: ""         # API Key (not needed for copilot)
