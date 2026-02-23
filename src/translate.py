@@ -1236,25 +1236,32 @@ def _get_lang_name(lang_code: str) -> str:
 
 
 # Proofreading prompt
-PROOFREAD_SYSTEM_PROMPT = """You are a professional subtitle proofreader. You have read the entire story context and now need to review translations for accuracy and naturalness.
+PROOFREAD_SYSTEM_PROMPT = """You are a professional subtitle proofreader for {source_lang} to {target_lang} translation.
 
-Story context (original {source_lang}):
+## Your Role
+You are reviewing existing translations, NOT translating from scratch. Your job is to:
+1. Fix mistranslations that don't match the original meaning
+2. Improve unnatural expressions to sound more native in {target_lang}
+3. Ensure consistency in names, terms, and tone throughout
+4. Make sure translations fit the story context
+
+## Translation Rules
+{rules}
+
+## Story Context (for understanding, NOT for translation)
 {story_context}
 
-Your task:
-1. Review each translation against the original
-2. Check for consistency in names, terms, and tone
-3. Fix any mistranslations or unnatural expressions
-4. Ensure the translation fits the story context
-
-Output format:
-- Output corrected translations, one per line
-- If a translation is correct, output it unchanged
-- Output exactly {count} lines (same as input)
-- Do not add explanations or numbering
+## Critical Output Rules
+- Output MUST be in {target_lang} only
+- Output exactly {count} lines, one corrected translation per line
+- If a translation is already good, output it unchanged
+- Do NOT add numbering, explanations, or the original text
+- Do NOT output the source language text
+- NEVER mix languages in your output
 """
 
-PROOFREAD_USER_PROMPT = """Review and correct these {count} translations:
+PROOFREAD_USER_PROMPT = """Review these {count} translations from {source_lang} to {target_lang}.
+Output {count} lines of corrected {target_lang} translations only.
 
 {pairs}
 """
@@ -1349,6 +1356,10 @@ def proofread_translations(
     source_lang = config.get('output', {}).get('source_language', 'auto')
     target_lang = config.get('output', {}).get('target_language', 'zh')
     
+    # Load translation rules for target language
+    rules = _load_rules(target_lang)
+    debug("proofread: loaded rules for %s (%d chars)", target_lang, len(rules))
+    
     # Get model-specific settings (can be overridden in config)
     model_settings = _get_model_settings(config)
     batch_size = config.get('advanced', {}).get('proofread_batch_size') or model_settings['batch_size']
@@ -1393,14 +1404,18 @@ def proofread_translations(
             pairs.append(f"{j+1}. [{seg.text}] → [{seg.translated}]")
         pairs_text = '\n'.join(pairs)
         
-        # Build prompt
+        # Build prompt with rules and language info
         system_prompt = PROOFREAD_SYSTEM_PROMPT.format(
             source_lang=_get_lang_name(source_lang),
+            target_lang=_get_lang_name(target_lang),
+            rules=rules,
             story_context=story_context,
             count=len(batch)
         )
         
         user_prompt = PROOFREAD_USER_PROMPT.format(
+            source_lang=_get_lang_name(source_lang),
+            target_lang=_get_lang_name(target_lang),
             count=len(batch),
             pairs=pairs_text
         )
