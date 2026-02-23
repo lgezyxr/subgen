@@ -1343,6 +1343,7 @@ def proofread_translations(
     from .logger import debug
     
     if not segments:
+        debug("proofread: no segments, returning early")
         return segments
     
     source_lang = config.get('output', {}).get('source_language', 'auto')
@@ -1365,20 +1366,14 @@ def proofread_translations(
     debug("proofread: %d segments, context=%d chars, batch_size=%d (model settings)", 
           len(segments), len(story_context), batch_size)
     
-    # Get translation provider
+    # Check provider is supported
     provider = config.get('translation', {}).get('provider', 'openai')
-    if provider == 'openai':
-        translate_fn = _translate_openai
-    elif provider == 'claude':
-        translate_fn = _translate_claude
-    elif provider == 'deepseek':
-        translate_fn = _translate_deepseek
-    elif provider == 'chatgpt':
-        translate_fn = _translate_chatgpt
-    elif provider == 'copilot':
-        translate_fn = _translate_copilot
-    else:
+    debug("proofread: provider=%s", provider)
+    
+    supported_providers = ['openai', 'claude', 'deepseek', 'chatgpt']
+    if provider not in supported_providers:
         debug("proofread: unsupported provider %s, skipping", provider)
+        print(f"[SubGen] Warning: Unsupported provider '{provider}' for proofreading (supported: {supported_providers})")
         return segments
     
     # Save raw translations before proofreading (for comparison)
@@ -1411,19 +1406,15 @@ def proofread_translations(
         )
         
         try:
-            # Call translation function (reuse the translate infrastructure)
-            corrections = translate_fn(
-                [user_prompt],  # Send as single "text" to translate
-                system_prompt,
-                source_lang,
-                target_lang,
-                100,  # max_chars not relevant for proofread
-                config
-            )
+            debug("proofread: calling LLM for batch %d/%d (%d segments)", 
+                  i // batch_size + 1, (len(segments) + batch_size - 1) // batch_size, len(batch))
+            
+            # Call LLM with custom prompts
+            result = _call_llm_for_proofread(system_prompt, user_prompt, config)
             
             # Parse corrections (one per line)
-            if corrections and corrections[0]:
-                correction_lines = corrections[0].strip().split('\n')
+            if result:
+                correction_lines = result.strip().split('\n')
                 # Clean up: remove numbering if present
                 cleaned = []
                 for line in correction_lines:
@@ -1456,3 +1447,152 @@ def proofread_translations(
             progress_callback(len(batch))
     
     return proofread_segments
+
+
+def _call_llm_for_proofread(
+    system_prompt: str,
+    user_prompt: str,
+    config: Dict[str, Any]
+) -> str:
+    """Call LLM with custom prompts for proofreading."""
+    import requests
+    from .logger import debug
+    
+    provider = config.get('translation', {}).get('provider', 'openai')
+    debug("_call_llm_for_proofread: provider=%s", provider)
+    
+    if provider == 'chatgpt':
+        from .auth.openai_codex import get_openai_codex_token, OpenAICodexAuthError, openai_codex_login
+        
+        try:
+            access_token, account_id = get_openai_codex_token()
+        except OpenAICodexAuthError as e:
+            print(f"\n⚠️  {e}")
+            print("Starting ChatGPT login...\n")
+            openai_codex_login()
+            access_token, account_id = get_openai_codex_token()
+        
+        model = config.get('translation', {}).get('chatgpt_model', 'gpt-5.1-codex-mini')
+        debug("_call_llm_for_proofread: chatgpt model=%s", model)
+        
+        response = requests.post(
+            "https://chatgpt.com/backend-api/codex/responses",
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+                "OpenAI-Beta": "responses=experimental",
+                "chatgpt-account-id": account_id,
+                "originator": "pi",
+            },
+            json={
+                "model": model,
+                "store": False,
+                "stream": False,
+                "instructions": system_prompt,
+                "input": [{"role": "user", "content": user_prompt}]
+            },
+            timeout=180
+        )
+        
+        debug("_call_llm_for_proofread: chatgpt response status=%d", response.status_code)
+        
+        if not response.ok:
+            raise ValueError(f"ChatGPT API error: {response.status_code} - {response.text[:200]}")
+        
+        data = response.json()
+        # Parse response - format: {"output": [{"content": [{"text": "..."}]}]}
+        output = data.get('output', [])
+        if output and len(output) > 0:
+            content = output[0].get('content', [])
+            if content and len(content) > 0:
+                return content[0].get('text', '')
+        return ''
+    
+    elif provider == 'openai':
+        api_key = config.get('translation', {}).get('openai_api_key', '')
+        if not api_key:
+            raise ValueError("OpenAI API key not configured")
+        
+        model = config.get('translation', {}).get('openai_model', 'gpt-4o')
+        
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                "temperature": 0.3
+            },
+            timeout=180
+        )
+        
+        if not response.ok:
+            raise ValueError(f"OpenAI API error: {response.status_code}")
+        
+        return response.json()['choices'][0]['message']['content']
+    
+    elif provider == 'claude':
+        api_key = config.get('translation', {}).get('claude_api_key', '')
+        if not api_key:
+            raise ValueError("Claude API key not configured")
+        
+        model = config.get('translation', {}).get('claude_model', 'claude-sonnet-4-20250514')
+        
+        response = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "Content-Type": "application/json",
+                "anthropic-version": "2023-06-01"
+            },
+            json={
+                "model": model,
+                "max_tokens": 4096,
+                "system": system_prompt,
+                "messages": [{"role": "user", "content": user_prompt}]
+            },
+            timeout=180
+        )
+        
+        if not response.ok:
+            raise ValueError(f"Claude API error: {response.status_code}")
+        
+        return response.json()['content'][0]['text']
+    
+    elif provider == 'deepseek':
+        api_key = config.get('translation', {}).get('deepseek_api_key', '')
+        if not api_key:
+            raise ValueError("DeepSeek API key not configured")
+        
+        model = config.get('translation', {}).get('deepseek_model', 'deepseek-chat')
+        
+        response = requests.post(
+            "https://api.deepseek.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                "temperature": 0.3
+            },
+            timeout=180
+        )
+        
+        if not response.ok:
+            raise ValueError(f"DeepSeek API error: {response.status_code}")
+        
+        return response.json()['choices'][0]['message']['content']
+    
+    else:
+        raise ValueError(f"Unsupported provider for proofreading: {provider}")

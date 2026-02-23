@@ -257,6 +257,8 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
         
         console.print()
         
+        console.print(f"[dim]Proofreading {len(segments)} segments with provider: {cfg.get('translation', {}).get('provider', 'openai')}[/dim]")
+        
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
