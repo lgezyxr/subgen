@@ -540,8 +540,10 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
     Translate a sentence group using the configured LLM provider.
     """
     import requests
+    from .logger import debug
     
     provider = config.get('translation', {}).get('provider', 'openai')
+    debug("_translate_sentence_group: provider=%s, expected_parts=%d", provider, expected_parts)
     
     if provider == 'openai':
         api_key = config.get('translation', {}).get('api_key')
@@ -582,6 +584,8 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
         access_token, account_id = get_openai_codex_token()
         model = config.get('translation', {}).get('model', 'gpt-4o')
         
+        debug("chatgpt: calling API with model=%s", model)
+        
         response = requests.post(
             "https://chatgpt.com/backend-api/conversation",
             headers={
@@ -603,6 +607,8 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
             stream=True
         )
         
+        debug("chatgpt: response status=%d", response.status_code)
+        
         result = ""
         for line in response.iter_lines():
             if not line:
@@ -620,8 +626,11 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
                             parts = msg.get('content', {}).get('parts', [])
                             if parts:
                                 result = parts[0]
+                                debug("chatgpt: got partial result len=%d", len(result))
                 except json.JSONDecodeError:
                     continue
+        
+        debug("chatgpt: final result len=%d, preview=%s", len(result), result[:100] if result else "(empty)")
 
     elif provider == 'claude':
         import anthropic
@@ -678,8 +687,12 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
     else:
         raise ValueError(f"Unsupported provider for sentence-aware translation: {provider}")
     
+    debug("_translate_sentence_group: raw result=%s", result[:200] if result else "(empty)")
+    
     # Parse result into lines
     lines = [line.strip() for line in result.strip().split('\n') if line.strip()]
+    
+    debug("_translate_sentence_group: parsed %d lines", len(lines))
     
     # Remove numbering if present (1. xxx, 1) xxx, etc.)
     cleaned = []
