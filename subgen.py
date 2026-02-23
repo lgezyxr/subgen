@@ -46,9 +46,10 @@ def cli():
 @click.option('--llm-provider', type=click.Choice(['openai', 'claude', 'deepseek', 'ollama', 'copilot', 'chatgpt']), help='Override LLM provider from config')
 @click.option('--embed', is_flag=True, help='Burn subtitles into video')
 @click.option('--config', '-c', type=click.Path(), default='config.yaml', help='Config file path')
+@click.option('--force-transcribe', is_flag=True, help='Force re-transcription even if cache exists')
 @click.option('--verbose', '-v', is_flag=True, help='Show verbose logs')
 @click.option('--debug', '-d', is_flag=True, help='Enable debug logging')
-def run(input_path, output, source_lang, target_lang, no_translate, sentence_aware, bilingual, whisper_provider, llm_provider, embed, config, verbose, debug):
+def run(input_path, output, source_lang, target_lang, no_translate, sentence_aware, bilingual, whisper_provider, llm_provider, embed, config, force_transcribe, verbose, debug):
     """
     Generate subtitles for a video file.
 
@@ -65,6 +66,9 @@ def run(input_path, output, source_lang, target_lang, no_translate, sentence_awa
 
         # Generate bilingual subtitles
         subgen run movie.mp4 --from en --to zh --bilingual
+        
+        # Force re-transcription (ignore cache)
+        subgen run movie.mp4 --to zh --force-transcribe
     """
     # Enable debug mode if requested
     if debug:
@@ -73,18 +77,19 @@ def run(input_path, output, source_lang, target_lang, no_translate, sentence_awa
     
     run_subtitle_generation(
         input_path, output, source_lang, target_lang, no_translate, sentence_aware,
-        bilingual, whisper_provider, llm_provider, embed, config, verbose
+        bilingual, whisper_provider, llm_provider, embed, config, force_transcribe, verbose
     )
 
 
 def run_subtitle_generation(input_path, output, source_lang, target_lang, no_translate, sentence_aware,
-                           bilingual, whisper_provider, llm_provider, embed, config, verbose):
+                           bilingual, whisper_provider, llm_provider, embed, config, force_transcribe, verbose):
     """Main subtitle generation logic."""
     from src.config import load_config
     from src.audio import extract_audio, cleanup_temp_files, check_ffmpeg
     from src.transcribe import transcribe_audio
     from src.translate import translate_segments, translate_segments_sentence_aware
     from src.subtitle import generate_subtitle, embed_subtitle
+    from src.cache import load_cache, save_cache, format_cache_info
 
     input_path = Path(input_path)
 
@@ -192,6 +197,17 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
 
     audio_path = None
     video_output = None
+    cached_transcription = None
+    
+    # Check for cached transcription
+    if not force_transcribe:
+        cached_transcription = load_cache(input_path)
+        if cached_transcription:
+            cache_info = format_cache_info(cached_transcription)
+            console.print(f"[green]📂 Found cached transcription[/green]")
+            console.print(f"   {cache_info}")
+            console.print(f"   [dim]Use --force-transcribe to re-process[/dim]")
+            console.print()
 
     try:
         with Progress(
@@ -202,19 +218,70 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
             console=console,
         ) as progress:
 
-            # Step 1: Extract audio
-            task1 = progress.add_task("[cyan]Extracting audio...", total=None)
-            audio_path = extract_audio(input_path, cfg)
-            progress.update(task1, completed=True, description="[green]✓ Audio extracted")
+            # Step 1 & 2: Extract audio and transcribe (or use cache)
+            if cached_transcription:
+                # Use cached transcription
+                progress.add_task("[green]✓ Using cached transcription", total=None)
+                
+                # Convert cached segments back to Segment objects
+                from src.transcribe import Segment
+                segments = []
+                for seg_data in cached_transcription['segments']:
+                    seg = Segment(
+                        start=seg_data['start'],
+                        end=seg_data['end'],
+                        text=seg_data['text']
+                    )
+                    # Restore word-level data if available
+                    if 'words' in seg_data:
+                        seg.words = seg_data['words']
+                    segments.append(seg)
+                
+                # Update source language from cache if not specified
+                if not source_lang and cached_transcription.get('source_lang'):
+                    cfg['whisper']['source_language'] = cached_transcription['source_lang']
+                    cfg['output']['source_language'] = cached_transcription['source_lang']
+            else:
+                # Step 1: Extract audio
+                task1 = progress.add_task("[cyan]Extracting audio...", total=None)
+                audio_path = extract_audio(input_path, cfg)
+                progress.update(task1, completed=True, description="[green]✓ Audio extracted")
 
-            # Step 2: Speech recognition
-            task2 = progress.add_task("[cyan]Transcribing...", total=None)
-            segments = transcribe_audio(audio_path, cfg)
-            if not segments:
-                progress.update(task2, completed=True, description="[yellow]⚠ No speech detected")
-                console.print("\n[yellow]Warning: No speech detected in video[/yellow]")
-                raise SystemExit(0)
-            progress.update(task2, completed=True, description=f"[green]✓ Transcribed ({len(segments)} segments)")
+                # Step 2: Speech recognition
+                task2 = progress.add_task("[cyan]Transcribing...", total=None)
+                segments = transcribe_audio(audio_path, cfg)
+                if not segments:
+                    progress.update(task2, completed=True, description="[yellow]⚠ No speech detected")
+                    console.print("\n[yellow]Warning: No speech detected in video[/yellow]")
+                    raise SystemExit(0)
+                progress.update(task2, completed=True, description=f"[green]✓ Transcribed ({len(segments)} segments)")
+                
+                # Save transcription to cache
+                try:
+                    # Convert segments to serializable format
+                    segments_data = []
+                    for seg in segments:
+                        seg_dict = {
+                            'start': seg.start,
+                            'end': seg.end,
+                            'text': seg.text
+                        }
+                        if hasattr(seg, 'words') and seg.words:
+                            seg_dict['words'] = seg.words
+                        segments_data.append(seg_dict)
+                    
+                    save_cache(
+                        video_path=input_path,
+                        segments=segments_data,
+                        word_segments=None,  # TODO: extract if available
+                        whisper_provider=cfg['whisper'].get('provider', 'local'),
+                        whisper_model=cfg['whisper'].get('model', 'large-v3'),
+                        source_lang=cfg['whisper'].get('source_language', 'auto')
+                    )
+                except Exception as e:
+                    # Cache save failure is not fatal
+                    if verbose:
+                        console.print(f"[dim]Note: Failed to save cache: {e}[/dim]")
 
             # Step 3: Translation (skip if --no-translate)
             if no_translate:
