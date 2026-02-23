@@ -1381,6 +1381,11 @@ def proofread_translations(
         debug("proofread: unsupported provider %s, skipping", provider)
         return segments
     
+    # Save raw translations before proofreading (for comparison)
+    for seg in segments:
+        if seg.translated and not seg.translated_raw:
+            seg.translated_raw = seg.translated
+    
     # Process in batches
     proofread_segments = []
     

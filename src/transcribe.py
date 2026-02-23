@@ -22,7 +22,8 @@ class Segment:
     start: float      # Start time (seconds)
     end: float        # End time (seconds)
     text: str         # Original text
-    translated: str = ""  # Translated text
+    translated: str = ""  # Translated text (final, after proofreading if applied)
+    translated_raw: str = ""  # Translation before proofreading (for comparison)
     words: List[Word] = field(default_factory=list)  # Word-level timestamps
     no_speech_prob: float = 0.0  # Probability of no speech (0-1)
     avg_logprob: float = 0.0  # Average log probability

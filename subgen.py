@@ -226,6 +226,7 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                         end=seg_data['end'],
                         text=seg_data['text'],
                         translated=seg_data.get('translated', ''),
+                        translated_raw=seg_data.get('translated_raw', ''),
                         no_speech_prob=seg_data.get('no_speech_prob', 0.0),
                         avg_logprob=seg_data.get('avg_logprob', 0.0)
                     )
@@ -321,6 +322,8 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                         start=seg_data['start'],
                         end=seg_data['end'],
                         text=seg_data['text'],
+                        translated=seg_data.get('translated', ''),
+                        translated_raw=seg_data.get('translated_raw', ''),
                         no_speech_prob=seg_data.get('no_speech_prob', 0.0),
                         avg_logprob=seg_data.get('avg_logprob', 0.0)
                     )
@@ -435,6 +438,7 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                             'end': seg.end,
                             'text': seg.text,
                             'translated': getattr(seg, 'translated', ''),
+                            'translated_raw': getattr(seg, 'translated_raw', ''),
                             'no_speech_prob': getattr(seg, 'no_speech_prob', 0.0),
                             'avg_logprob': getattr(seg, 'avg_logprob', 0.0)
                         }
