@@ -28,6 +28,83 @@ class Segment:
     avg_logprob: float = 0.0  # Average log probability
 
 
+def split_long_segments(segments: List[Segment], max_duration: float = 15.0) -> List[Segment]:
+    """
+    Split segments that are too long using word boundaries.
+    
+    Args:
+        segments: List of transcribed segments
+        max_duration: Maximum duration for a segment (seconds)
+        
+    Returns:
+        List of segments with long ones split
+    """
+    result = []
+    
+    for seg in segments:
+        duration = seg.end - seg.start
+        
+        # If segment is within limit, keep as-is
+        if duration <= max_duration:
+            result.append(seg)
+            continue
+        
+        # If no word-level data, keep as-is (can't split accurately)
+        if not seg.words:
+            debug("split_long_segments: segment [%.1f-%.1f] too long (%.1fs) but no word data, keeping",
+                  seg.start, seg.end, duration)
+            result.append(seg)
+            continue
+        
+        # Split using word boundaries
+        debug("split_long_segments: splitting segment [%.1f-%.1f] (%.1fs, %d words)",
+              seg.start, seg.end, duration, len(seg.words))
+        
+        current_words = []
+        current_start = seg.words[0].start if seg.words else seg.start
+        
+        for word in seg.words:
+            current_words.append(word)
+            current_duration = word.end - current_start
+            
+            # Split at natural boundaries (punctuation) or when duration exceeded
+            is_sentence_end = word.text.rstrip().endswith(('.', '!', '?', '。', '！', '？', '…'))
+            should_split = (current_duration >= max_duration * 0.8) or \
+                          (current_duration >= max_duration * 0.5 and is_sentence_end)
+            
+            if should_split and len(current_words) >= 2:
+                # Create new segment from accumulated words
+                new_seg = Segment(
+                    start=current_start,
+                    end=word.end,
+                    text=' '.join(w.text for w in current_words).strip(),
+                    words=current_words.copy(),
+                    no_speech_prob=seg.no_speech_prob,
+                    avg_logprob=seg.avg_logprob
+                )
+                result.append(new_seg)
+                debug("split_long_segments: created sub-segment [%.1f-%.1f] %s",
+                      new_seg.start, new_seg.end, new_seg.text[:30])
+                
+                # Reset for next segment
+                current_words = []
+                current_start = word.end
+        
+        # Handle remaining words
+        if current_words:
+            new_seg = Segment(
+                start=current_start,
+                end=seg.words[-1].end,
+                text=' '.join(w.text for w in current_words).strip(),
+                words=current_words,
+                no_speech_prob=seg.no_speech_prob,
+                avg_logprob=seg.avg_logprob
+            )
+            result.append(new_seg)
+    
+    return result
+
+
 def merge_segments_by_sentence(segments: List[Segment], max_duration: float = 8.0) -> List[Segment]:
     """
     Merge segments to form complete sentences.
@@ -118,9 +195,18 @@ def transcribe_audio(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
 
     debug("transcribe: got %d segments", len(segments))
 
+    # Post-process: split long segments using word boundaries
+    max_segment_duration = config.get('advanced', {}).get('max_segment_duration', 15.0)
+    split_long = config.get('advanced', {}).get('split_long_segments', True)
+    
+    if split_long:
+        original_count = len(segments)
+        segments = split_long_segments(segments, max_duration=max_segment_duration)
+        if len(segments) != original_count:
+            debug("transcribe: split long segments, %d -> %d", original_count, len(segments))
+
     # Post-process: merge segments by sentence boundaries (disabled by default)
     merge_sentences = config.get('advanced', {}).get('merge_sentences', False)
-    max_segment_duration = config.get('advanced', {}).get('max_segment_duration', 8.0)
 
     if merge_sentences:
         segments = merge_segments_by_sentence(segments, max_duration=max_segment_duration)

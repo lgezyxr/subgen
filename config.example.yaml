@@ -88,3 +88,7 @@ advanced:
   filter_music: true              # Enable automatic music/noise detection
   no_speech_threshold: 0.6        # Skip segments with no_speech_prob above this
   max_no_speech_duration: 30.0    # For long segments, use lower threshold (0.5)
+
+  # Long segment handling
+  split_long_segments: true       # Split segments longer than max_segment_duration
+  max_segment_duration: 15.0      # Maximum segment duration in seconds
