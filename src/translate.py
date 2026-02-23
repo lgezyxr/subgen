@@ -241,6 +241,10 @@ def translate_segments(
                 max_chars,
                 config
             )
+            
+            # Check for error messages in translation response
+            translations = _validate_translations(translations, batch_texts)
+            
         except Exception as e:
             # On translation failure, keep original text
             print(f"Translation batch failed: {e}")
@@ -264,12 +268,52 @@ def translate_segments(
     return translated_segments
 
 
-def _group_segments_by_sentence(segments: List[Segment]) -> List[List[Segment]]:
+def _validate_translations(translations: List[str], originals: List[str]) -> List[str]:
+    """
+    Validate translations and detect error messages.
+    
+    If a translation looks like an error message from the LLM,
+    fall back to keeping the original text.
+    """
+    # Common error message patterns (Chinese and English)
+    error_patterns = [
+        "抱歉", "无法", "对不起", "不能完成", "超过", "太长",
+        "sorry", "cannot", "unable", "too long", "exceeds",
+        "I cannot", "I'm unable", "I apologize"
+    ]
+    
+    result = []
+    for i, trans in enumerate(translations):
+        # Check if translation looks like an error message
+        is_error = False
+        if trans and len(trans) > 50:  # Error messages are usually longer
+            trans_lower = trans.lower()
+            for pattern in error_patterns:
+                if pattern.lower() in trans_lower:
+                    is_error = True
+                    break
+        
+        if is_error:
+            # Keep original text if translation is an error message
+            from .logger import debug
+            debug("validate_translations: detected error message, keeping original: %s", trans[:50])
+            result.append(originals[i] if i < len(originals) else "")
+        else:
+            result.append(trans)
+    
+    return result
+
+
+def _group_segments_by_sentence(segments: List[Segment], max_group_size: int = 10) -> List[List[Segment]]:
     """
     Group segments by sentence boundaries.
     
     Segments not ending with sentence-ending punctuation are grouped
     with following segments until a sentence end is found.
+    
+    Args:
+        segments: List of segments to group
+        max_group_size: Maximum segments per group (prevents runaway grouping)
     
     Returns:
         List of segment groups, where each group forms a complete sentence
@@ -284,8 +328,8 @@ def _group_segments_by_sentence(segments: List[Segment]) -> List[List[Segment]]:
         current_group.append(seg)
         text = seg.text.strip()
         
-        # Check if this segment ends a sentence
-        if sentence_end.search(text) or not text:
+        # Check if this segment ends a sentence OR group is too large
+        if sentence_end.search(text) or not text or len(current_group) >= max_group_size:
             if current_group:
                 groups.append(current_group)
                 current_group = []
