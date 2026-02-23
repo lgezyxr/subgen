@@ -216,12 +216,19 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
             BarColumn(),
             TimeElapsedColumn(),
             console=console,
+            transient=False,
         ) as progress:
+
+            # Helper to complete a task (stops spinner and timer)
+            def complete_task(task_id, description):
+                progress.update(task_id, description=description)
+                progress.stop_task(task_id)
 
             # Step 1 & 2: Extract audio and transcribe (or use cache)
             if cached_transcription:
                 # Use cached transcription
-                progress.add_task("[green]✓ Using cached transcription", total=None)
+                task_cache = progress.add_task("[green]✓ Using cached transcription", total=None)
+                progress.stop_task(task_cache)
                 
                 # Convert cached segments back to Segment objects
                 from src.transcribe import Segment
@@ -245,7 +252,7 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                 # Step 1: Extract audio
                 task1 = progress.add_task("[cyan]Extracting audio...", total=None)
                 audio_path = extract_audio(input_path, cfg)
-                progress.update(task1, completed=True, description="[green]✓ Audio extracted")
+                complete_task(task1, "[green]✓ Audio extracted")
 
                 # Step 2: Speech recognition
                 task2 = progress.add_task("[cyan]Transcribing...", total=None)
@@ -255,12 +262,12 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                 log_debug("main: transcribe_audio returned %d segments", len(segments) if segments else 0)
                 
                 if not segments:
-                    progress.update(task2, completed=True, description="[yellow]⚠ No speech detected")
+                    complete_task(task2, "[yellow]⚠ No speech detected")
                     console.print("\n[yellow]Warning: No speech detected in video[/yellow]")
                     raise SystemExit(0)
                 
                 log_debug("main: updating progress bar...")
-                progress.update(task2, completed=True, description=f"[green]✓ Transcribed ({len(segments)} segments)")
+                complete_task(task2, f"[green]✓ Transcribed ({len(segments)} segments)")
                 log_debug("main: progress bar updated")
                 
                 # Save transcription to cache
@@ -328,19 +335,19 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                         cfg,
                         progress_callback=lambda n: progress.update(task3, advance=n)
                     )
-                progress.update(task3, completed=len(segments), description="[green]✓ Translation complete")
+                complete_task(task3, "[green]✓ Translation complete")
 
             # Step 4: Generate subtitles
             task4 = progress.add_task("[cyan]Generating subtitles...", total=None)
             generate_subtitle(translated_segments, output_path, cfg)
-            progress.update(task4, completed=True, description="[green]✓ Subtitles generated")
+            complete_task(task4, "[green]✓ Subtitles generated")
 
             # Step 5: Embed in video (optional)
             if cfg['output'].get('embed_in_video', False):
                 task5 = progress.add_task("[cyan]Embedding subtitles...", total=None)
                 video_output = input_path.with_stem(input_path.stem + '_subbed')
                 embed_subtitle(input_path, output_path, video_output, cfg)
-                progress.update(task5, completed=True, description="[green]✓ Video generated")
+                complete_task(task5, "[green]✓ Video generated")
 
         console.print("\n[bold green]✅ Done![/bold green]")
         console.print(f"Subtitle file: [cyan]{output_path}[/cyan]")
