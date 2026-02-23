@@ -78,13 +78,13 @@ class TestParseTranslations:
 class TestNormalizeTextForLlm:
     """Tests for text normalization before LLM translation."""
 
-    def test_newline_replaced(self):
+    def test_newline_replaced_with_br(self):
         from src.translate import _normalize_text_for_llm
-        assert _normalize_text_for_llm("Line1\nLine2") == "Line1 Line2"
+        assert _normalize_text_for_llm("Line1\nLine2") == "Line1 <BR> Line2"
 
     def test_multiple_newlines(self):
         from src.translate import _normalize_text_for_llm
-        assert _normalize_text_for_llm("A\nB\nC") == "A B C"
+        assert _normalize_text_for_llm("A\nB\nC") == "A <BR> B <BR> C"
 
     def test_no_newline(self):
         from src.translate import _normalize_text_for_llm
@@ -93,3 +93,23 @@ class TestNormalizeTextForLlm:
     def test_whitespace_stripped(self):
         from src.translate import _normalize_text_for_llm
         assert _normalize_text_for_llm("  text  ") == "text"
+
+
+class TestRestoreLineBreaks:
+    """Tests for restoring line breaks from LLM output."""
+
+    def test_br_to_newline(self):
+        from src.translate import _restore_line_breaks
+        assert _restore_line_breaks("Line1 <BR> Line2") == "Line1\nLine2"
+
+    def test_lowercase_br(self):
+        from src.translate import _restore_line_breaks
+        assert _restore_line_breaks("Line1 <br> Line2") == "Line1\nLine2"
+
+    def test_no_br(self):
+        from src.translate import _restore_line_breaks
+        assert _restore_line_breaks("Single line") == "Single line"
+
+    def test_cleans_spaces_around_newlines(self):
+        from src.translate import _restore_line_breaks
+        assert _restore_line_breaks("A  <BR>  B") == "A\nB"

@@ -10,10 +10,26 @@ from .transcribe import Segment
 
 def _normalize_text_for_llm(text: str) -> str:
     """
-    Normalize text for LLM input - replace newlines with spaces.
+    Normalize text for LLM input - replace newlines with placeholder.
     This prevents multi-line subtitles from being counted as multiple items.
+    The placeholder <BR> will be preserved by LLM and converted back to \\n.
     """
-    return text.replace('\n', ' ').strip()
+    return text.replace('\n', ' <BR> ').strip()
+
+
+def _restore_line_breaks(text: str) -> str:
+    """
+    Restore line breaks from LLM output - convert <BR> placeholder back to newlines.
+    """
+    # Handle various formats LLM might output
+    text = text.replace('<BR>', '\n')
+    text = text.replace('<br>', '\n')
+    text = text.replace('[BR]', '\n')
+    text = text.replace('(BR)', '\n')
+    # Clean up extra spaces around newlines
+    import re
+    text = re.sub(r'\s*\n\s*', '\n', text)
+    return text.strip()
 
 
 # Base translation system prompt
@@ -25,6 +41,7 @@ Requirements:
 3. Maintain consistency across context
 4. Keep proper nouns (names, places) consistent throughout
 5. Use colloquial expressions, avoid overly formal language
+6. IMPORTANT: If you see <BR> in the text, keep it in your translation at a similar position (it marks line breaks)
 
 Output format:
 - Output only the translations, one line per subtitle
@@ -41,6 +58,7 @@ Requirements:
 3. Maintain consistency across context
 4. Keep proper nouns (names, places) consistent throughout
 5. Use colloquial expressions, avoid overly formal language
+6. IMPORTANT: If you see <BR> in the text, keep it in your translation at a similar position (it marks line breaks)
 
 {target_lang} Translation Rules (MUST follow strictly):
 {rules}
@@ -267,7 +285,9 @@ def translate_segments(
         # Update subtitles (use index iteration to ensure no loss)
         for idx, seg in enumerate(batch):
             trans = translations[idx] if idx < len(translations) else ""
-            seg.translated = trans.strip() if trans else seg.text
+            # Restore line breaks from <BR> placeholder
+            trans = _restore_line_breaks(trans) if trans else ""
+            seg.translated = trans if trans else seg.text
             translated_segments.append(seg)
 
         # Update progress
@@ -428,7 +448,8 @@ def translate_segments_sentence_aware(
                 for seg in group:
                     try:
                         translations = translate_fn([seg.text], source_lang, target_lang, max_chars, config)
-                        seg.translated = translations[0] if translations else seg.text
+                        trans = _restore_line_breaks(translations[0]) if translations else seg.text
+                        seg.translated = trans
                     except Exception:
                         seg.translated = seg.text
                     translated_segments.append(seg)
@@ -440,7 +461,8 @@ def translate_segments_sentence_aware(
                 seg = group[0]
                 try:
                     translations = translate_fn([seg.text], source_lang, target_lang, max_chars, config)
-                    seg.translated = translations[0] if translations else seg.text
+                    trans = _restore_line_breaks(translations[0]) if translations else seg.text
+                    seg.translated = trans
                 except Exception as e:
                     print(f"Translation failed: {e}")
                     seg.translated = seg.text
@@ -459,7 +481,7 @@ def translate_segments_sentence_aware(
                     translations = _translate_sentence_group(prompt, num_parts, config)
                     for idx, seg in enumerate(group):
                         if idx < len(translations):
-                            seg.translated = translations[idx].strip()
+                            seg.translated = _restore_line_breaks(translations[idx])
                         else:
                             seg.translated = seg.text
                         translated_segments.append(seg)
