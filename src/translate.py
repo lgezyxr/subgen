@@ -582,7 +582,9 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
     elif provider == 'chatgpt':
         from .auth.openai_codex import get_openai_codex_token
         access_token, account_id = get_openai_codex_token()
-        model = config.get('translation', {}).get('model', 'gpt-4o')
+        # ChatGPT backend uses different model names
+        # "auto" lets ChatGPT pick, or use specific like "gpt-4o-mini", "gpt-4"
+        model = config.get('translation', {}).get('model', 'auto')
         
         debug("chatgpt: calling API with model=%s", model)
         
@@ -1056,7 +1058,7 @@ def _translate_chatgpt(
     )
 
     # Get model from config, default to gpt-4o
-    model = config.get('translation', {}).get('model', 'gpt-4o')
+    model = config.get('translation', {}).get('model', 'auto')
 
     # Call ChatGPT backend API (Codex/Responses API)
     response = requests.post(

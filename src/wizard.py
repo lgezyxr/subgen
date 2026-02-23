@@ -317,9 +317,9 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
     elif llm_provider == "claude":
         config["llm"]["model"] = "claude-3-haiku-20240307"
     elif llm_provider == "chatgpt":
-        config["llm"]["model"] = "gpt-4o"
+        config["llm"]["model"] = "auto"  # Let ChatGPT pick best available
     elif llm_provider == "copilot":
-        config["llm"]["model"] = "gpt-4o"
+        config["llm"]["model"] = "gpt-4o-mini"
 
     # Step 3: Target language
     print("\n" + "-" * 50)
