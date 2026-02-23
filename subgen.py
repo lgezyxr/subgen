@@ -47,7 +47,8 @@ def cli():
 @click.option('--embed', is_flag=True, help='Burn subtitles into video')
 @click.option('--config', '-c', type=click.Path(), default='config.yaml', help='Config file path')
 @click.option('--verbose', '-v', is_flag=True, help='Show verbose logs')
-def run(input_path, output, source_lang, target_lang, no_translate, sentence_aware, bilingual, whisper_provider, llm_provider, embed, config, verbose):
+@click.option('--debug', '-d', is_flag=True, help='Enable debug logging')
+def run(input_path, output, source_lang, target_lang, no_translate, sentence_aware, bilingual, whisper_provider, llm_provider, embed, config, verbose, debug):
     """
     Generate subtitles for a video file.
 
@@ -65,6 +66,11 @@ def run(input_path, output, source_lang, target_lang, no_translate, sentence_awa
         # Generate bilingual subtitles
         subgen run movie.mp4 --from en --to zh --bilingual
     """
+    # Enable debug mode if requested
+    if debug:
+        from src.logger import set_debug
+        set_debug(True)
+    
     run_subtitle_generation(
         input_path, output, source_lang, target_lang, no_translate, sentence_aware,
         bilingual, whisper_provider, llm_provider, embed, config, verbose

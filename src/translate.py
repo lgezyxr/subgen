@@ -310,6 +310,7 @@ def translate_segments_sentence_aware(
     subtitle timing based on LLM semantic understanding.
     """
     from .transcribe import Segment, Word
+    from .logger import debug, debug_segments
     
     if not segments:
         return segments
@@ -318,9 +319,13 @@ def translate_segments_sentence_aware(
     target_lang = config.get('output', {}).get('target_language', 'zh')
     max_chars = config.get('output', {}).get('max_chars_per_line', 40)
     
+    debug("sentence_aware: source=%s, target=%s, max_chars=%d", source_lang, target_lang, max_chars)
+    debug_segments("sentence_aware input", segments)
+    
     # Get translate function if not provided
     if translate_fn is None:
         provider = config.get('translation', {}).get('provider', 'openai')
+        debug("sentence_aware: using provider=%s", provider)
         if provider == 'openai':
             translate_fn = _translate_openai
         elif provider == 'claude':
@@ -338,24 +343,33 @@ def translate_segments_sentence_aware(
     
     # Check if we have word-level timestamps
     has_word_timestamps = any(seg.words for seg in segments)
+    debug("sentence_aware: has_word_timestamps=%s", has_word_timestamps)
     
     # Group segments by sentence
     groups = _group_segments_by_sentence(segments)
+    debug("sentence_aware: %d groups from %d segments", len(groups), len(segments))
     
     translated_segments = []
     
-    for group in groups:
+    for i, group in enumerate(groups):
+        debug("sentence_aware: processing group %d/%d with %d segments", i+1, len(groups), len(group))
+        
         # Collect all words from this sentence group
         all_words = []
         for seg in group:
-            all_words.extend(seg.words)
+            if seg.words:
+                all_words.extend(seg.words)
+        
+        debug("sentence_aware: group %d has %d words", i+1, len(all_words))
         
         # Use word-aligned translation if we have word data
         if has_word_timestamps and all_words:
             try:
+                debug("sentence_aware: using word-aligned translation for group %d", i+1)
                 new_segments = _translate_with_word_alignment(
                     group, all_words, source_lang, target_lang, max_chars, config
                 )
+                debug("sentence_aware: word-aligned produced %d segments", len(new_segments))
                 translated_segments.extend(new_segments)
             except Exception as e:
                 print(f"Word-aligned translation failed: {e}, falling back...")
@@ -425,11 +439,14 @@ def _translate_with_word_alignment(
     each segment should end at. We then create segments with precise timestamps.
     """
     from .transcribe import Segment, Word
+    from .logger import debug
     
     # Build words with positions string
     words_with_positions = " ".join(
         f"[{i}]{w.text}" for i, w in enumerate(all_words)
     )
+    
+    debug("word_alignment: input words: %s", words_with_positions[:200])
     
     # Calculate reasonable segment count range
     total_words = len(all_words)
@@ -445,8 +462,12 @@ def _translate_with_word_alignment(
         max_chars=max_chars
     )
     
+    debug("word_alignment: calling LLM with max_segments=%d", max_segments)
+    
     # Call LLM
     result = _translate_sentence_group(prompt, max_segments, config)
+    
+    debug("word_alignment: LLM returned %d lines: %s", len(result), result)
     
     # Parse result: "translated text | end: N"
     new_segments = []
@@ -456,6 +477,8 @@ def _translate_with_word_alignment(
         line = line.strip()
         if not line:
             continue
+        
+        debug("word_alignment: parsing line: %s", line)
         
         # Parse "text | end: N" format
         if "|" in line and "end:" in line.lower():
@@ -478,6 +501,9 @@ def _translate_with_word_alignment(
                 start_time = all_words[start_idx].start if start_idx < len(all_words) else all_words[-1].end
                 end_time = all_words[end_idx].end
                 
+                debug("word_alignment: segment text=%s, start_idx=%d, end_idx=%d, time=%.2f-%.2f", 
+                      text[:20], start_idx, end_idx, start_time, end_time)
+                
                 new_segments.append(Segment(
                     start=start_time,
                     end=end_time,
@@ -486,13 +512,14 @@ def _translate_with_word_alignment(
                 ))
                 
                 prev_end_idx = end_idx
+            else:
+                debug("word_alignment: no end position found in: %s", end_part)
         else:
-            # Fallback: just use the text without timing info
-            # This shouldn't happen if LLM follows the format
-            pass
+            debug("word_alignment: line doesn't match format: %s", line)
     
     # If no valid segments were parsed, return original segments with translation
     if not new_segments:
+        debug("word_alignment: no segments parsed, falling back")
         merged_text = " ".join(seg.text for seg in group)
         merged_translation = " ".join(result) if result else merged_text
         
@@ -504,6 +531,7 @@ def _translate_with_word_alignment(
             translated=merged_translation
         )]
     
+    debug("word_alignment: returning %d segments", len(new_segments))
     return new_segments
 
 
