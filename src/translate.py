@@ -1447,12 +1447,12 @@ def proofread_translations(
                         cleaned.append(line)
                 correction_lines = cleaned
 
-                debug("proofread: batch %d got %d corrections (expected %d)", 
+                debug("proofread: batch %d got %d corrections (expected %d)",
                       i // batch_size + 1, len(correction_lines), len(batch))
 
                 # Validate: line count must match exactly to preserve order
                 if len(correction_lines) != len(batch):
-                    debug("proofread: batch %d SKIPPED - line count mismatch (%d != %d)", 
+                    debug("proofread: batch %d SKIPPED - line count mismatch (%d != %d)",
                           i // batch_size + 1, len(correction_lines), len(batch))
                     print(f"[SubGen] Warning: Proofreading batch skipped (LLM returned {len(correction_lines)} lines, expected {len(batch)})")
                     # Keep original translations
