@@ -42,6 +42,7 @@ def cli():
 @click.option('--no-translate', is_flag=True, help='Skip translation, output transcription only')
 @click.option('--sentence-aware', '-s', is_flag=True, help='Use sentence-aware translation (better for split sentences)')
 @click.option('--proofread', '-p', is_flag=True, help='Add proofreading pass after translation (uses full story context)')
+@click.option('--proofread-only', is_flag=True, help='Only run proofreading on existing translated subtitles (requires cache or .srt)')
 @click.option('--bilingual', '-b', is_flag=True, help='Generate bilingual subtitles')
 @click.option('--whisper-provider', type=click.Choice(['local', 'mlx', 'openai', 'groq']), help='Override Whisper provider from config')
 @click.option('--llm-provider', type=click.Choice(['openai', 'claude', 'deepseek', 'ollama', 'copilot', 'chatgpt']), help='Override LLM provider from config')
@@ -50,7 +51,7 @@ def cli():
 @click.option('--force-transcribe', is_flag=True, help='Force re-transcription even if cache exists')
 @click.option('--verbose', '-v', is_flag=True, help='Show verbose logs')
 @click.option('--debug', '-d', is_flag=True, help='Enable debug logging')
-def run(input_path, output, source_lang, target_lang, no_translate, sentence_aware, proofread, bilingual, whisper_provider, llm_provider, embed, config, force_transcribe, verbose, debug):
+def run(input_path, output, source_lang, target_lang, no_translate, sentence_aware, proofread, proofread_only, bilingual, whisper_provider, llm_provider, embed, config, force_transcribe, verbose, debug):
     """
     Generate subtitles for a video file.
 
@@ -77,12 +78,12 @@ def run(input_path, output, source_lang, target_lang, no_translate, sentence_awa
         set_debug(True)
     
     run_subtitle_generation(
-        input_path, output, source_lang, target_lang, no_translate, sentence_aware, proofread,
+        input_path, output, source_lang, target_lang, no_translate, sentence_aware, proofread, proofread_only,
         bilingual, whisper_provider, llm_provider, embed, config, force_transcribe, verbose
     )
 
 
-def run_subtitle_generation(input_path, output, source_lang, target_lang, no_translate, sentence_aware, proofread,
+def run_subtitle_generation(input_path, output, source_lang, target_lang, no_translate, sentence_aware, proofread, proofread_only,
                            bilingual, whisper_provider, llm_provider, embed, config, force_transcribe, verbose):
     """Main subtitle generation logic."""
     from src.config import load_config
@@ -201,6 +202,52 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
     audio_path = None
     video_output = None
     cached_transcription = None
+    
+    # Handle proofread-only mode
+    if proofread_only:
+        from src.subtitle import load_srt, generate_subtitle
+        from src.translate import proofread_translations
+        
+        # Look for existing subtitle file
+        existing_srt = input_path.parent / f"{input_path.stem}_zh.srt"
+        if not existing_srt.exists():
+            existing_srt = input_path.with_suffix('.srt')
+        
+        if not existing_srt.exists():
+            console.print(f"[red]Error: No existing subtitle file found[/red]")
+            console.print(f"[dim]Looked for: {existing_srt}[/dim]")
+            raise SystemExit(1)
+        
+        console.print(f"[green]📂 Loading existing subtitles: {existing_srt.name}[/green]")
+        segments = load_srt(existing_srt)
+        console.print(f"   Loaded {len(segments)} segments")
+        console.print()
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TimeElapsedColumn(),
+            console=console,
+        ) as progress:
+            task = progress.add_task("[cyan]Proofreading...", total=len(segments))
+            segments = proofread_translations(
+                segments,
+                cfg,
+                progress_callback=lambda n: progress.update(task, advance=n)
+            )
+            progress.update(task, description="[green]✓ Proofreading complete")
+            progress.stop_task(task)
+            
+            # Generate new subtitle file
+            task2 = progress.add_task("[cyan]Generating subtitles...", total=None)
+            generate_subtitle(segments, output_path, cfg)
+            progress.update(task2, description="[green]✓ Subtitles generated")
+            progress.stop_task(task2)
+        
+        console.print(f"\n[bold green]✅ Done![/bold green]")
+        console.print(f"Subtitle file: [cyan]{output_path}[/cyan]")
+        return
     
     # Check for cached transcription
     if not force_transcribe:
