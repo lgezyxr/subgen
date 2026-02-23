@@ -1060,10 +1060,12 @@ def _translate_copilot(
     """Translate using GitHub Copilot API"""
     import requests
     from .auth.copilot import get_copilot_api_token, CopilotAuthError, copilot_login
+    from .logger import debug
 
     # Get Copilot token (will refresh if needed)
     try:
         token = get_copilot_api_token()
+        debug("copilot: got API token")
     except CopilotAuthError as e:
         # Not logged in, try interactive login
         print(f"\n⚠️  {e}")
@@ -1089,6 +1091,7 @@ def _translate_copilot(
     # Call Copilot API (OpenAI-compatible)
     # Get model from config (default to claude-sonnet-4 for Copilot)
     model = config.get('translation', {}).get('model', 'claude-sonnet-4')
+    debug("copilot: using model=%s, texts=%d", model, len(texts))
     
     response = requests.post(
         "https://api.githubcopilot.com/chat/completions",
@@ -1113,6 +1116,8 @@ def _translate_copilot(
         timeout=60
     )
 
+    debug("copilot: response status=%d", response.status_code)
+
     if response.status_code == 401:
         raise ValueError("Copilot token expired. Please run: subgen auth login copilot")
 
@@ -1123,12 +1128,14 @@ def _translate_copilot(
             err_msg = err.get("error", {}).get("message", response.text[:500])
         except Exception:
             err_msg = response.text[:500]
+        debug("copilot: error response: %s", err_msg)
         raise ValueError(f"Copilot API error (400): {err_msg}")
 
     response.raise_for_status()
 
     result = response.json()
     result_text = result['choices'][0]['message']['content'].strip()
+    debug("copilot: got %d chars response", len(result_text))
     return _parse_translations(result_text, len(texts))
 
 
