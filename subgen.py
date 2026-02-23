@@ -41,6 +41,7 @@ def cli():
 @click.option('--to', '-t', 'target_lang', default=None, help='Target translation language (e.g., zh, ja, ko)')
 @click.option('--no-translate', is_flag=True, help='Skip translation, output transcription only')
 @click.option('--sentence-aware', '-s', is_flag=True, help='Use sentence-aware translation (better for split sentences)')
+@click.option('--proofread', '-p', is_flag=True, help='Add proofreading pass after translation (uses full story context)')
 @click.option('--bilingual', '-b', is_flag=True, help='Generate bilingual subtitles')
 @click.option('--whisper-provider', type=click.Choice(['local', 'mlx', 'openai', 'groq']), help='Override Whisper provider from config')
 @click.option('--llm-provider', type=click.Choice(['openai', 'claude', 'deepseek', 'ollama', 'copilot', 'chatgpt']), help='Override LLM provider from config')
@@ -49,7 +50,7 @@ def cli():
 @click.option('--force-transcribe', is_flag=True, help='Force re-transcription even if cache exists')
 @click.option('--verbose', '-v', is_flag=True, help='Show verbose logs')
 @click.option('--debug', '-d', is_flag=True, help='Enable debug logging')
-def run(input_path, output, source_lang, target_lang, no_translate, sentence_aware, bilingual, whisper_provider, llm_provider, embed, config, force_transcribe, verbose, debug):
+def run(input_path, output, source_lang, target_lang, no_translate, sentence_aware, proofread, bilingual, whisper_provider, llm_provider, embed, config, force_transcribe, verbose, debug):
     """
     Generate subtitles for a video file.
 
@@ -76,18 +77,18 @@ def run(input_path, output, source_lang, target_lang, no_translate, sentence_awa
         set_debug(True)
     
     run_subtitle_generation(
-        input_path, output, source_lang, target_lang, no_translate, sentence_aware,
+        input_path, output, source_lang, target_lang, no_translate, sentence_aware, proofread,
         bilingual, whisper_provider, llm_provider, embed, config, force_transcribe, verbose
     )
 
 
-def run_subtitle_generation(input_path, output, source_lang, target_lang, no_translate, sentence_aware,
+def run_subtitle_generation(input_path, output, source_lang, target_lang, no_translate, sentence_aware, proofread,
                            bilingual, whisper_provider, llm_provider, embed, config, force_transcribe, verbose):
     """Main subtitle generation logic."""
     from src.config import load_config
     from src.audio import extract_audio, cleanup_temp_files, check_ffmpeg
     from src.transcribe import transcribe_audio
-    from src.translate import translate_segments, translate_segments_sentence_aware
+    from src.translate import translate_segments, translate_segments_sentence_aware, proofread_translations
     from src.subtitle import generate_subtitle, embed_subtitle
     from src.cache import load_cache, save_cache, format_cache_info
 
@@ -343,6 +344,16 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                         progress_callback=lambda n: progress.update(task3, advance=n)
                     )
                 complete_task(task3, "[green]✓ Translation complete")
+                
+                # Step 3.5: Proofreading (optional)
+                if proofread:
+                    task_proof = progress.add_task("[cyan]Proofreading...", total=len(translated_segments))
+                    translated_segments = proofread_translations(
+                        translated_segments,
+                        cfg,
+                        progress_callback=lambda n: progress.update(task_proof, advance=n)
+                    )
+                    complete_task(task_proof, "[green]✓ Proofreading complete")
 
             # Step 4: Generate subtitles
             task4 = progress.add_task("[cyan]Generating subtitles...", total=None)

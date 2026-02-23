@@ -1233,3 +1233,157 @@ def _get_lang_name(lang_code: str) -> str:
         'hi': 'हिन्दी',
     }
     return lang_map.get(lang_code, lang_code)
+
+
+# Proofreading prompt
+PROOFREAD_SYSTEM_PROMPT = """You are a professional subtitle proofreader. You have read the entire story context and now need to review translations for accuracy and naturalness.
+
+Story context (original {source_lang}):
+{story_context}
+
+Your task:
+1. Review each translation against the original
+2. Check for consistency in names, terms, and tone
+3. Fix any mistranslations or unnatural expressions
+4. Ensure the translation fits the story context
+
+Output format:
+- Output corrected translations, one per line
+- If a translation is correct, output it unchanged
+- Output exactly {count} lines (same as input)
+- Do not add explanations or numbering
+"""
+
+PROOFREAD_USER_PROMPT = """Review and correct these {count} translations:
+
+{pairs}
+"""
+
+
+def proofread_translations(
+    segments: List[Segment],
+    config: Dict[str, Any],
+    progress_callback: Optional[Callable[[int], None]] = None
+) -> List[Segment]:
+    """
+    Proofread translations with full story context.
+    
+    Sends the LLM the complete source text for context,
+    then reviews translations in batches for accuracy.
+    
+    Args:
+        segments: Segments with .text (original) and .translated
+        config: Configuration dictionary
+        progress_callback: Progress update callback
+        
+    Returns:
+        Segments with proofread translations
+    """
+    from .logger import debug
+    
+    if not segments:
+        return segments
+    
+    source_lang = config.get('output', {}).get('source_language', 'auto')
+    target_lang = config.get('output', {}).get('target_language', 'zh')
+    batch_size = config.get('advanced', {}).get('proofread_batch_size', 30)
+    
+    # Build story context (all original text, no timestamps)
+    story_lines = [seg.text for seg in segments if seg.text.strip()]
+    story_context = '\n'.join(story_lines)
+    
+    # Truncate if too long (keep first and last parts for context)
+    max_context_chars = config.get('advanced', {}).get('proofread_context_chars', 8000)
+    if len(story_context) > max_context_chars:
+        half = max_context_chars // 2
+        story_context = story_context[:half] + "\n...[truncated]...\n" + story_context[-half:]
+    
+    debug("proofread: %d segments, context=%d chars, batch_size=%d", 
+          len(segments), len(story_context), batch_size)
+    
+    # Get translation provider
+    provider = config.get('translation', {}).get('provider', 'openai')
+    if provider == 'openai':
+        translate_fn = _translate_openai
+    elif provider == 'claude':
+        translate_fn = _translate_claude
+    elif provider == 'deepseek':
+        translate_fn = _translate_deepseek
+    elif provider == 'chatgpt':
+        translate_fn = _translate_chatgpt
+    elif provider == 'copilot':
+        translate_fn = _translate_copilot
+    else:
+        debug("proofread: unsupported provider %s, skipping", provider)
+        return segments
+    
+    # Process in batches
+    proofread_segments = []
+    
+    for i in range(0, len(segments), batch_size):
+        batch = segments[i:i + batch_size]
+        
+        # Build pairs for review: "Original: xxx | Translation: yyy"
+        pairs = []
+        for j, seg in enumerate(batch):
+            pairs.append(f"{j+1}. [{seg.text}] → [{seg.translated}]")
+        pairs_text = '\n'.join(pairs)
+        
+        # Build prompt
+        system_prompt = PROOFREAD_SYSTEM_PROMPT.format(
+            source_lang=_get_lang_name(source_lang),
+            story_context=story_context,
+            count=len(batch)
+        )
+        
+        user_prompt = PROOFREAD_USER_PROMPT.format(
+            count=len(batch),
+            pairs=pairs_text
+        )
+        
+        try:
+            # Call translation function (reuse the translate infrastructure)
+            corrections = translate_fn(
+                [user_prompt],  # Send as single "text" to translate
+                system_prompt,
+                source_lang,
+                target_lang,
+                100,  # max_chars not relevant for proofread
+                config
+            )
+            
+            # Parse corrections (one per line)
+            if corrections and corrections[0]:
+                correction_lines = corrections[0].strip().split('\n')
+                # Clean up: remove numbering if present
+                cleaned = []
+                for line in correction_lines:
+                    line = line.strip()
+                    # Remove patterns like "1. ", "1) ", etc.
+                    import re
+                    line = re.sub(r'^\d+[\.\)]\s*', '', line)
+                    if line:
+                        cleaned.append(line)
+                correction_lines = cleaned
+                
+                debug("proofread: batch %d got %d corrections", i // batch_size + 1, len(correction_lines))
+                
+                # Apply corrections
+                for j, seg in enumerate(batch):
+                    if j < len(correction_lines) and correction_lines[j].strip():
+                        new_trans = correction_lines[j].strip()
+                        if new_trans != seg.translated:
+                            debug("proofread: corrected [%s] → [%s]", 
+                                  seg.translated[:20], new_trans[:20])
+                        seg.translated = new_trans
+            
+        except Exception as e:
+            debug("proofread: batch %d failed: %s", i // batch_size + 1, e)
+            # Keep original translations on error
+        
+        proofread_segments.extend(batch)
+        
+        if progress_callback:
+            progress_callback(len(batch))
+    
+    return proofread_segments

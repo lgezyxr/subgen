@@ -97,3 +97,7 @@ advanced:
   validate_segments: true         # Enable validation
   min_words_per_sec: 0.3          # Minimum words/second (below = likely music)
   min_duration_for_density_check: 20.0  # Only check segments longer than this
+
+  # Proofreading settings
+  proofread_batch_size: 30        # Segments per proofreading batch
+  proofread_context_chars: 8000   # Max chars for story context (truncated if exceeded)
