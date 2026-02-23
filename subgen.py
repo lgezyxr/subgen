@@ -231,17 +231,22 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                 progress.stop_task(task_cache)
                 
                 # Convert cached segments back to Segment objects
-                from src.transcribe import Segment
+                from src.transcribe import Segment, Word
                 segments = []
                 for seg_data in cached_transcription['segments']:
                     seg = Segment(
                         start=seg_data['start'],
                         end=seg_data['end'],
-                        text=seg_data['text']
+                        text=seg_data['text'],
+                        no_speech_prob=seg_data.get('no_speech_prob', 0.0),
+                        avg_logprob=seg_data.get('avg_logprob', 0.0)
                     )
-                    # Restore word-level data if available
-                    if 'words' in seg_data:
-                        seg.words = seg_data['words']
+                    # Restore word-level data if available (convert dicts to Word objects)
+                    if 'words' in seg_data and seg_data['words']:
+                        seg.words = [
+                            Word(text=w['text'], start=w['start'], end=w['end'])
+                            for w in seg_data['words']
+                        ]
                     segments.append(seg)
                 
                 # Update source language from cache if not specified
