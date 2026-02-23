@@ -250,17 +250,25 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                 # Step 2: Speech recognition
                 task2 = progress.add_task("[cyan]Transcribing...", total=None)
                 segments = transcribe_audio(audio_path, cfg)
+                
+                from src.logger import debug as log_debug
+                log_debug("main: transcribe_audio returned %d segments", len(segments) if segments else 0)
+                
                 if not segments:
                     progress.update(task2, completed=True, description="[yellow]⚠ No speech detected")
                     console.print("\n[yellow]Warning: No speech detected in video[/yellow]")
                     raise SystemExit(0)
+                
+                log_debug("main: updating progress bar...")
                 progress.update(task2, completed=True, description=f"[green]✓ Transcribed ({len(segments)} segments)")
+                log_debug("main: progress bar updated")
                 
                 # Save transcription to cache
+                log_debug("main: starting cache save...")
                 try:
                     # Convert segments to serializable format
                     segments_data = []
-                    for seg in segments:
+                    for i, seg in enumerate(segments):
                         seg_dict = {
                             'start': seg.start,
                             'end': seg.end,
@@ -276,6 +284,8 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                             ]
                         segments_data.append(seg_dict)
                     
+                    log_debug("main: converted %d segments to dicts", len(segments_data))
+                    
                     save_cache(
                         video_path=input_path,
                         segments=segments_data,
@@ -284,10 +294,12 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                         whisper_model=cfg['whisper'].get('local_model', 'large-v3'),
                         source_lang=cfg['whisper'].get('source_language', 'auto')
                     )
+                    log_debug("main: cache saved successfully")
                 except Exception as e:
                     # Cache save failure is not fatal, but always show in debug mode
-                    from src.logger import debug
-                    debug("cache save failed: %s", e)
+                    log_debug("main: cache save failed: %s", e)
+                    import traceback
+                    log_debug("main: cache save traceback: %s", traceback.format_exc())
                     if verbose:
                         console.print(f"[dim]Note: Failed to save cache: {e}[/dim]")
 
@@ -342,7 +354,9 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
 
     except Exception as e:
         console.print(f"\n[red]Error: {e}[/red]")
-        if verbose:
+        # Always print traceback in debug mode
+        from src.logger import is_debug
+        if verbose or is_debug():
             import traceback
             console.print(traceback.format_exc())
         raise SystemExit(1)
