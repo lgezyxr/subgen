@@ -198,7 +198,7 @@ def transcribe_audio(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
     debug("transcribe: got %d segments", len(segments))
 
     # Validate: filter out low-density segments (likely music/noise)
-    validate = config.get('advanced', {}).get('validate_segments', True)
+    validate = config.get('advanced', {}).get('validate_segments', False)  # Disabled by default
     if validate:
         original_count = len(segments)
         segments = validate_segments(segments, config)
@@ -347,7 +347,7 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
           info.language, info.language_probability)
 
     # Config for filtering
-    filter_music = config.get('advanced', {}).get('filter_music', True)
+    filter_music = config.get('advanced', {}).get('filter_music', False)  # Disabled by default
     no_speech_threshold = config.get('advanced', {}).get('no_speech_threshold', 0.6)
     max_no_speech_duration = config.get('advanced', {}).get('max_no_speech_duration', 30.0)
 

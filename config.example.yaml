@@ -85,7 +85,7 @@ advanced:
   log_level: "INFO"
 
   # Music/noise filtering (uses Whisper's no_speech_prob)
-  filter_music: true              # Enable automatic music/noise detection
+  filter_music: false              # Enable automatic music/noise detection
   no_speech_threshold: 0.6        # Skip segments with no_speech_prob above this
   max_no_speech_duration: 30.0    # For long segments, use lower threshold (0.5)
 
@@ -94,7 +94,7 @@ advanced:
   max_segment_duration: 15.0      # Maximum segment duration in seconds
 
   # Segment validation (detect music/noise by speech density)
-  validate_segments: true         # Enable validation
+  validate_segments: false         # Enable validation
   min_words_per_sec: 0.3          # Minimum words/second (below = likely music)
   min_duration_for_density_check: 20.0  # Only check segments longer than this
 
