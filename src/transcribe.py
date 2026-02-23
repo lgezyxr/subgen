@@ -222,8 +222,14 @@ def transcribe_audio(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
     return segments
 
 
+# Global reference to keep model alive and prevent crash on garbage collection
+_model_ref = None
+
+
 def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
     """Transcribe using local faster-whisper"""
+    global _model_ref
+    
     try:
         from faster_whisper import WhisperModel
     except ImportError:
@@ -357,6 +363,10 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
     # except Exception as e:
     #     debug("transcribe_local: cleanup error: %s", e)
 
+    # Keep model reference alive to prevent crash during garbage collection
+    # The model will be cleaned up on next transcription or program exit
+    _model_ref = model
+    
     debug("transcribe_local: about to return %d segments", len(segments))
     return segments
 
