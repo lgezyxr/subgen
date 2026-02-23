@@ -23,7 +23,7 @@ def debug(msg: str, *args: Any):
     if _debug_enabled:
         if args:
             msg = msg % args
-        print(f"[DEBUG] {msg}", file=sys.stderr)
+        print(f"[DEBUG] {msg}", file=sys.stderr, flush=True)
 
 
 def debug_segment(label: str, seg: Any):

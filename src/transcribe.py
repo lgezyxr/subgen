@@ -338,11 +338,22 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
 
     # Explicitly release GPU memory
     debug("transcribe_local: releasing GPU memory...")
-    del model
-    gc.collect()
+    try:
+        debug("transcribe_local: deleting model...")
+        del model
+        debug("transcribe_local: model deleted, running gc.collect()...")
+        gc.collect()
+        debug("transcribe_local: gc.collect() done")
+    except Exception as e:
+        debug("transcribe_local: error during cleanup: %s", e)
+        import traceback
+        debug("transcribe_local: traceback: %s", traceback.format_exc())
+    
     try:
         if has_torch and device == 'cuda' and torch.cuda.is_available():
+            debug("transcribe_local: clearing CUDA cache...")
             torch.cuda.empty_cache()
+            debug("transcribe_local: CUDA cache cleared")
     except Exception as e:
         debug("transcribe_local: could not clear CUDA cache: %s", e)
     debug("transcribe_local: GPU memory released")
