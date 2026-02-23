@@ -581,29 +581,47 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
         
     elif provider == 'chatgpt':
         from .auth.openai_codex import get_openai_codex_token
+        import uuid
+        
         access_token, account_id = get_openai_codex_token()
         # ChatGPT backend uses different model names
         # "auto" lets ChatGPT pick, or use specific like "gpt-4o-mini", "gpt-4"
         model = config.get('translation', {}).get('model', 'auto')
         
-        debug("chatgpt: calling API with model=%s", model)
+        debug("chatgpt: calling API with model=%s, account_id=%s", model, account_id[:8] + "...")
+        
+        # Generate unique IDs for the request
+        conversation_id = None  # New conversation
+        parent_message_id = str(uuid.uuid4())
+        message_id = str(uuid.uuid4())
         
         response = requests.post(
             "https://chatgpt.com/backend-api/conversation",
             headers={
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json",
-                "chatgpt-account-id": account_id,
+                "Accept": "text/event-stream",
+                "Accept-Language": "en-US,en;q=0.9",
+                "oai-device-id": str(uuid.uuid4()),
+                "oai-language": "en-US",
+                "openai-sentinel-chat-requirements-token": "",
             },
             json={
                 "action": "next",
                 "messages": [{
-                    "id": f"msg-{int(time.time())}",
+                    "id": message_id,
                     "author": {"role": "user"},
-                    "content": {"content_type": "text", "parts": [prompt]}
+                    "content": {"content_type": "text", "parts": [prompt]},
+                    "metadata": {}
                 }],
+                "parent_message_id": parent_message_id,
                 "model": model,
+                "timezone_offset_min": -480,
+                "suggestions": [],
                 "history_and_training_disabled": True,
+                "conversation_mode": {"kind": "primary_assistant"},
+                "force_paragen": False,
+                "force_rate_limit": False,
             },
             timeout=120,
             stream=True
@@ -614,11 +632,19 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
         if response.status_code == 403:
             # Try to get error details
             try:
-                error_body = response.text[:500]
+                error_body = response.text[:1000]
                 debug("chatgpt: 403 error body: %s", error_body)
-            except:
-                pass
-            raise ValueError("ChatGPT 403 Forbidden - token may be expired. Run: subgen auth login chatgpt")
+                print(f"\n[ChatGPT 403 Error] {error_body[:200]}")
+            except Exception as e:
+                debug("chatgpt: failed to get error body: %s", e)
+            raise ValueError("ChatGPT 403 Forbidden - try: subgen auth login chatgpt")
+        
+        if response.status_code == 401:
+            raise ValueError("ChatGPT 401 Unauthorized - token expired. Run: subgen auth login chatgpt")
+        
+        if not response.ok:
+            debug("chatgpt: error response: %s", response.text[:500])
+            raise ValueError(f"ChatGPT API error: {response.status_code}")
         
         result = ""
         for line in response.iter_lines():
