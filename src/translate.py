@@ -582,46 +582,36 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
     elif provider == 'chatgpt':
         from .auth.openai_codex import get_openai_codex_token
         import uuid
+        import platform
         
         access_token, account_id = get_openai_codex_token()
-        # ChatGPT backend uses different model names
-        # "auto" lets ChatGPT pick, or use specific like "gpt-4o-mini", "gpt-4"
-        model = config.get('translation', {}).get('model', 'auto')
+        model = config.get('translation', {}).get('model', 'gpt-4o')
         
-        debug("chatgpt: calling API with model=%s, account_id=%s", model, account_id[:8] + "...")
+        debug("chatgpt: using Codex Responses API, model=%s", model)
         
-        # Generate unique IDs for the request
-        conversation_id = None  # New conversation
-        parent_message_id = str(uuid.uuid4())
-        message_id = str(uuid.uuid4())
+        # Build user agent
+        system = platform.system().lower()
+        release = platform.release()
+        arch = platform.machine()
+        user_agent = f"subgen ({system} {release}; {arch})"
         
         response = requests.post(
-            "https://chatgpt.com/backend-api/conversation",
+            "https://chatgpt.com/backend-api/codex/responses",
             headers={
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json",
                 "Accept": "text/event-stream",
-                "Accept-Language": "en-US,en;q=0.9",
-                "oai-device-id": str(uuid.uuid4()),
-                "oai-language": "en-US",
-                "openai-sentinel-chat-requirements-token": "",
+                "chatgpt-account-id": account_id,
+                "OpenAI-Beta": "responses=experimental",
+                "originator": "subgen",
+                "User-Agent": user_agent,
             },
             json={
-                "action": "next",
-                "messages": [{
-                    "id": message_id,
-                    "author": {"role": "user"},
-                    "content": {"content_type": "text", "parts": [prompt]},
-                    "metadata": {}
-                }],
-                "parent_message_id": parent_message_id,
                 "model": model,
-                "timezone_offset_min": -480,
-                "suggestions": [],
-                "history_and_training_disabled": True,
-                "conversation_mode": {"kind": "primary_assistant"},
-                "force_paragen": False,
-                "force_rate_limit": False,
+                "store": False,
+                "stream": True,
+                "instructions": "You are a professional subtitle translator.",
+                "input": [{"role": "user", "content": prompt}],
             },
             timeout=120,
             stream=True
@@ -646,6 +636,7 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
             debug("chatgpt: error response: %s", response.text[:500])
             raise ValueError(f"ChatGPT API error: {response.status_code}")
         
+        # Parse Codex Responses API SSE format
         result = ""
         for line in response.iter_lines():
             if not line:
@@ -657,13 +648,32 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
                     break
                 try:
                     event = json.loads(data)
-                    if 'message' in event:
+                    event_type = event.get('type', '')
+                    
+                    # Handle different event types from Codex Responses API
+                    if event_type == 'response.output_text.delta':
+                        # Streaming text delta
+                        delta = event.get('delta', '')
+                        result += delta
+                        debug("chatgpt: text delta len=%d", len(delta))
+                    elif event_type == 'response.completed':
+                        # Final response
+                        response_data = event.get('response', {})
+                        output = response_data.get('output', [])
+                        for item in output:
+                            if item.get('type') == 'message':
+                                content = item.get('content', [])
+                                for part in content:
+                                    if part.get('type') == 'output_text':
+                                        result = part.get('text', result)
+                        debug("chatgpt: response completed, result len=%d", len(result))
+                    elif 'message' in event:
+                        # Legacy conversation format (fallback)
                         msg = event['message']
                         if msg.get('author', {}).get('role') == 'assistant':
                             parts = msg.get('content', {}).get('parts', [])
                             if parts:
                                 result = parts[0]
-                                debug("chatgpt: got partial result len=%d", len(result))
                 except json.JSONDecodeError:
                     continue
         
