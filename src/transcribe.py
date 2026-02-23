@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 
+from .logger import debug
+
 
 @dataclass
 class Word:
@@ -98,6 +100,8 @@ def transcribe_audio(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
     """
     whisper_config = config.get('whisper', {})
     provider = whisper_config.get('provider', 'local')
+    
+    debug("transcribe: provider=%s, audio=%s", provider, audio_path)
 
     if provider == 'local':
         segments = _transcribe_local(audio_path, config)
@@ -110,12 +114,15 @@ def transcribe_audio(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
     else:
         raise ValueError(f"Unsupported Whisper provider: {provider}")
 
+    debug("transcribe: got %d segments", len(segments))
+
     # Post-process: merge segments by sentence boundaries (disabled by default)
     merge_sentences = config.get('advanced', {}).get('merge_sentences', False)
     max_segment_duration = config.get('advanced', {}).get('max_segment_duration', 8.0)
 
     if merge_sentences:
         segments = merge_segments_by_sentence(segments, max_duration=max_segment_duration)
+        debug("transcribe: after merge, %d segments", len(segments))
 
     return segments
 
@@ -134,6 +141,8 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
     device = config['whisper'].get('device', 'cuda')
     source_lang = config['whisper'].get('source_language', None)
 
+    debug("transcribe_local: model=%s, device=%s, lang=%s", model_name, device, source_lang)
+
     # Select compute type (can be overridden in config)
     # float16 is fastest but not supported on older GPUs (Pascal/GTX 10xx)
     compute_type = config['whisper'].get('compute_type', None)
@@ -145,6 +154,8 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
             # Try float16 first, fallback to float32 for older GPUs
             compute_type = "float16"
 
+    debug("transcribe_local: loading model with compute_type=%s", compute_type)
+
     # Load model with fallback for older GPUs
     try:
         model = WhisperModel(model_name, device=device, compute_type=compute_type)
@@ -152,9 +163,12 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
         if "float16" in str(e) and compute_type == "float16":
             print("  ⚠️  GPU doesn't support float16, using float32...")
             compute_type = "float32"
+            debug("transcribe_local: fallback to compute_type=%s", compute_type)
             model = WhisperModel(model_name, device=device, compute_type=compute_type)
         else:
             raise
+    
+    debug("transcribe_local: model loaded, starting transcription...")
 
     # Transcription options
     transcribe_opts = {
@@ -168,9 +182,18 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
 
     # Transcribe
     segments_iter, info = model.transcribe(str(audio_path), **transcribe_opts)
+    
+    debug("transcribe_local: detected language=%s, probability=%.2f", 
+          info.language, info.language_probability)
 
     segments = []
+    segment_count = 0
     for seg in segments_iter:
+        segment_count += 1
+        if segment_count <= 3 or segment_count % 50 == 0:
+            debug("transcribe_local: segment %d: [%.1f-%.1f] %s", 
+                  segment_count, seg.start, seg.end, seg.text[:50] if seg.text else "")
+        
         # Extract word-level timestamps
         words = []
         if seg.words:
@@ -187,6 +210,8 @@ def _transcribe_local(audio_path: Path, config: Dict[str, Any]) -> List[Segment]
             text=seg.text.strip(),
             words=words
         ))
+    
+    debug("transcribe_local: completed, total %d segments", len(segments))
 
     return segments
 
