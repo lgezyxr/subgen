@@ -184,6 +184,7 @@ def transcribe_audio(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
 
     if provider == 'local':
         segments = _transcribe_local(audio_path, config)
+        debug("transcribe: _transcribe_local returned")
     elif provider == 'mlx':
         segments = _transcribe_mlx(audio_path, config)
     elif provider == 'openai':
@@ -199,9 +200,13 @@ def transcribe_audio(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
     max_segment_duration = config.get('advanced', {}).get('max_segment_duration', 15.0)
     split_long = config.get('advanced', {}).get('split_long_segments', True)
     
+    debug("transcribe: split_long=%s, max_duration=%.1f", split_long, max_segment_duration)
+    
     if split_long:
         original_count = len(segments)
+        debug("transcribe: calling split_long_segments...")
         segments = split_long_segments(segments, max_duration=max_segment_duration)
+        debug("transcribe: split_long_segments done")
         if len(segments) != original_count:
             debug("transcribe: split long segments, %d -> %d", original_count, len(segments))
 
@@ -211,6 +216,8 @@ def transcribe_audio(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
     if merge_sentences:
         segments = merge_segments_by_sentence(segments, max_duration=max_segment_duration)
         debug("transcribe: after merge, %d segments", len(segments))
+
+    debug("transcribe: returning %d segments", len(segments))
 
     return segments
 
