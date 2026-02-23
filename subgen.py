@@ -267,7 +267,11 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                             'text': seg.text
                         }
                         if hasattr(seg, 'words') and seg.words:
-                            seg_dict['words'] = seg.words
+                            # Convert Word objects to dicts for JSON serialization
+                            seg_dict['words'] = [
+                                {'text': w.text, 'start': w.start, 'end': w.end}
+                                for w in seg.words
+                            ]
                         segments_data.append(seg_dict)
                     
                     save_cache(
@@ -275,11 +279,13 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                         segments=segments_data,
                         word_segments=None,  # TODO: extract if available
                         whisper_provider=cfg['whisper'].get('provider', 'local'),
-                        whisper_model=cfg['whisper'].get('model', 'large-v3'),
+                        whisper_model=cfg['whisper'].get('local_model', 'large-v3'),
                         source_lang=cfg['whisper'].get('source_language', 'auto')
                     )
                 except Exception as e:
-                    # Cache save failure is not fatal
+                    # Cache save failure is not fatal, but always show in debug mode
+                    from src.logger import debug
+                    debug("cache save failed: %s", e)
                     if verbose:
                         console.print(f"[dim]Note: Failed to save cache: {e}[/dim]")
 
