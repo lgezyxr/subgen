@@ -1449,7 +1449,7 @@ def proofread_translations(
                         new_trans = correction_lines[j].strip()
                         if new_trans != seg.translated:
                             debug("proofread: corrected [%s] → [%s]", 
-                                  seg.translated[:20], new_trans[:20])
+                                  seg.translated, new_trans)
                         seg.translated = new_trans
             
         except Exception as e:
