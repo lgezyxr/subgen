@@ -11,7 +11,7 @@
 ## ✨ Features
 
 - 🎯 **One-click generation**: Video in, subtitles out
-- 🔊 **Multiple Whisper backends**: Local GPU, MLX (Apple Silicon), OpenAI, Groq
+- 🔊 **Multiple Whisper backends**: Local GPU, MLX (Apple Silicon), whisper.cpp, OpenAI, Groq
 - 🌍 **Multiple LLM providers**: OpenAI, Claude, DeepSeek, Ollama, ChatGPT Plus, Copilot
 - 🎯 **Sentence-aware translation**: Groups sentences for context, word-level timing alignment
 - 📝 **AI proofreading**: Full-story context review for consistency and accuracy
@@ -19,11 +19,33 @@
 - 💾 **Smart caching**: Transcription results cached for fast re-runs
 - 🎨 **Style presets**: Built-in styles (default/netflix/fansub/minimal) with full customization
 - 📁 **Project files**: Save/load `.subgen` project files for iterative workflows
+- 🧩 **Component system**: On-demand download of whisper.cpp, models, and FFmpeg
 - 💰 **Transparent costs**: Use your own API keys
+
+## 📥 Download
+
+Download the latest release for your platform from [GitHub Releases](https://github.com/lgezyxr/subgen/releases):
+
+| Platform | File |
+|----------|------|
+| Windows | `subgen-windows-x64.exe` |
+| macOS (Intel) | `subgen-macos-x64` |
+| macOS (Apple Silicon) | `subgen-macos-arm64` |
+| Linux | `subgen-linux-x64` |
+
+After downloading, run `subgen init` to set up everything (Whisper backend, LLM, FFmpeg) in one step.
 
 ## 🚀 Quick Start
 
-### Installation
+### Option 1: Download Executable (Recommended)
+
+```bash
+# Download from GitHub Releases, then:
+./subgen init       # One-stop setup: configures Whisper, LLM, FFmpeg
+./subgen run movie.mp4 --to zh
+```
+
+### Option 2: Install from Source
 
 ```bash
 git clone https://github.com/lgezyxr/subgen.git
@@ -38,6 +60,12 @@ pip install -r requirements.txt
 ```bash
 python subgen.py init
 ```
+
+The `init` wizard walks you through:
+1. **Speech recognition** — Choose cloud (Groq, free) or local (whisper.cpp)
+2. **Translation** — Choose LLM provider (Copilot, ChatGPT, OpenAI, etc.)
+3. **FFmpeg** — Auto-downloads if not found
+4. **Defaults** — Language, format, style preset
 
 ### Basic Usage
 
@@ -74,10 +102,10 @@ python subgen.py run <video> [options]
 
 #### Provider Options
 
-| Option | Description |
-|--------|-------------|
-| `--whisper-provider` | local / mlx / openai / groq |
-| `--llm-provider` | openai / claude / deepseek / ollama / chatgpt / copilot |
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--whisper-provider` | | local / mlx / cpp / openai / groq |
+| `--llm-provider` | | openai / claude / deepseek / ollama / chatgpt / copilot |
 
 #### Style Options
 
@@ -128,7 +156,23 @@ python subgen.py auth logout chatgpt
 python subgen.py init
 ```
 
-Interactive wizard for configuring providers and API keys.
+Interactive one-stop wizard that configures providers, downloads components (whisper.cpp, models, FFmpeg), and sets up API keys. After init, you're ready to `subgen run`.
+
+### `subgen doctor` - Environment Check
+
+```bash
+python subgen.py doctor
+```
+
+Diagnoses your environment: checks config, FFmpeg, Whisper backend, LLM, GPU, and disk usage. Shows what's ready and what needs fixing.
+
+### `subgen install` - Install Components
+
+```bash
+python subgen.py install whisper         # Install whisper.cpp engine
+python subgen.py install model large-v3  # Install a Whisper model
+python subgen.py install ffmpeg          # Install FFmpeg
+```
 
 ## 🎯 Translation Modes
 
@@ -202,7 +246,8 @@ Cache file: `.subgen-cache.json` (same directory as video)
 
 | Provider | Platform | Cost | Notes |
 |----------|----------|------|-------|
-| `mlx` | Apple Silicon | Free | **Best for M1/M2/M3 Macs** |
+| `cpp` | Any | Free | **whisper.cpp**, on-demand download, GPU accelerated |
+| `mlx` | Apple Silicon | Free | Best for M1/M2/M3 Macs |
 | `local` | NVIDIA GPU | Free | Requires CUDA, 4GB+ VRAM |
 | `groq` | Any | Free tier | Very fast cloud API |
 | `openai` | Any | $0.006/min | Most stable |

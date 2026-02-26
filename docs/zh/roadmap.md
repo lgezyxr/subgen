@@ -43,6 +43,10 @@
 - [x] 项目文件格式（`.subgen` JSON）
 - [x] Engine 架构重构（CLI → Engine → transcribe/translate/subtitle/styles）
 - [x] CLI 新选项（`--style-preset`、`--primary-font`、`--primary-color`、`--secondary-font`、`--secondary-color`、`--save-project`、`--load-project`）
+- [x] 组件系统（按需下载 whisper.cpp、模型、FFmpeg）
+- [x] whisper.cpp 后端（`cpp` provider，通过 subprocess 调用）
+- [x] `subgen doctor` 环境诊断
+- [x] `subgen install` / `subgen uninstall` 组件管理
 - [ ] API Key 验证和错误提示优化
 - [ ] 进度显示优化（百分比、预估时间）
 - [ ] 断点续传（大文件处理中断后可恢复）
@@ -229,7 +233,7 @@
 | 版本 | 目标日期 | 关键功能 |
 |------|----------|----------|
 | v0.1.0 | ✅ 已完成 | MVP - 核心流程 |
-| v0.2.0 | ✅ 已完成 | 样式系统、项目文件、引擎重构 |
+| v0.2.0 | ✅ 已完成 | 样式系统、项目文件、引擎重构、组件系统、whisper.cpp |
 | v0.3.0 | +5 周 | 翻译质量提升 |
 | v0.4.0 | +7 周 | 批量处理 |
 | v0.5.0 | +11 周 | 说话人分离 |

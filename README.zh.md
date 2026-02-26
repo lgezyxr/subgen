@@ -11,7 +11,7 @@
 ## ✨ 功能特性
 
 - 🎯 **一键生成**：丢进视频，输出字幕
-- 🔊 **多种 Whisper 后端**：本地 GPU、MLX（苹果芯片）、OpenAI、Groq
+- 🔊 **多种 Whisper 后端**：本地 GPU、MLX（苹果芯片）、whisper.cpp、OpenAI、Groq
 - 🌍 **多种翻译服务**：OpenAI、Claude、DeepSeek、Ollama、ChatGPT Plus、Copilot
 - 🎯 **句子感知翻译**：按完整句子分组，词级时间戳对齐
 - 📝 **AI 校对**：全剧情上下文审校，确保一致性和准确性
@@ -19,11 +19,33 @@
 - 💾 **智能缓存**：转写结果缓存，重复运行秒出
 - 🎨 **样式预设**：内置样式（default/netflix/fansub/minimal），支持完全自定义
 - 📁 **项目文件**：保存/加载 `.subgen` 项目文件，支持迭代工作流
+- 🧩 **组件系统**：按需下载 whisper.cpp、模型、FFmpeg
 - 💰 **费用透明**：用自己的 API Key，花多少一目了然
+
+## 📥 下载
+
+从 [GitHub Releases](https://github.com/lgezyxr/subgen/releases) 下载适合你平台的最新版本：
+
+| 平台 | 文件 |
+|------|------|
+| Windows | `subgen-windows-x64.exe` |
+| macOS (Intel) | `subgen-macos-x64` |
+| macOS (Apple Silicon) | `subgen-macos-arm64` |
+| Linux | `subgen-linux-x64` |
+
+下载后运行 `subgen init` 一站式设置（Whisper 后端、LLM、FFmpeg）。
 
 ## 🚀 快速开始
 
-### 安装
+### 方式一：下载可执行文件（推荐）
+
+```bash
+# 从 GitHub Releases 下载后：
+./subgen init       # 一站式设置：配置 Whisper、LLM、FFmpeg
+./subgen run movie.mp4 --to zh
+```
+
+### 方式二：从源码安装
 
 ```bash
 git clone https://github.com/lgezyxr/subgen.git
@@ -38,6 +60,12 @@ pip install -r requirements.txt
 ```bash
 python subgen.py init
 ```
+
+`init` 向导引导你完成：
+1. **语音识别** — 选择云端（Groq，免费）或本地（whisper.cpp）
+2. **翻译** — 选择 LLM 服务商（Copilot、ChatGPT、OpenAI 等）
+3. **FFmpeg** — 未找到时自动下载
+4. **默认设置** — 语言、格式、样式预设
 
 ### 基本用法
 
@@ -74,10 +102,10 @@ python subgen.py run <视频> [选项]
 
 #### 服务商选项
 
-| 选项 | 说明 |
-|------|------|
-| `--whisper-provider` | local / mlx / openai / groq |
-| `--llm-provider` | openai / claude / deepseek / ollama / chatgpt / copilot |
+| 选项 | 简写 | 说明 |
+|------|------|------|
+| `--whisper-provider` | | local / mlx / cpp / openai / groq |
+| `--llm-provider` | | openai / claude / deepseek / ollama / chatgpt / copilot |
 
 #### 样式选项
 
@@ -120,6 +148,30 @@ python subgen.py auth status
 
 # 登出
 python subgen.py auth logout chatgpt
+```
+
+### `subgen init` - 设置向导
+
+```bash
+python subgen.py init
+```
+
+交互式一站设置向导，配置服务商、下载组件（whisper.cpp、模型、FFmpeg）、设置 API 密钥。完成后即可直接 `subgen run`。
+
+### `subgen doctor` - 环境检查
+
+```bash
+python subgen.py doctor
+```
+
+诊断你的环境：检查配置、FFmpeg、Whisper 后端、LLM、GPU 和磁盘使用情况。显示哪些已就绪、哪些需要修复。
+
+### `subgen install` - 安装组件
+
+```bash
+python subgen.py install whisper         # 安装 whisper.cpp 引擎
+python subgen.py install model large-v3  # 安装 Whisper 模型
+python subgen.py install ffmpeg          # 安装 FFmpeg
 ```
 
 ## 🎯 翻译模式
@@ -174,13 +226,28 @@ python subgen.py run video.mp4 --proofread-only --to zh
 | `--no-translate` | `video.srt` |
 | `-o custom.srt` | `custom.srt` |
 
+## 💾 缓存
+
+SubGen 缓存转写结果以避免重复处理：
+
+```bash
+# 有缓存时使用缓存
+python subgen.py run video.mp4 -s --to zh
+
+# 强制重新转写
+python subgen.py run video.mp4 -s --to zh --force-transcribe
+```
+
+缓存文件：`.subgen-cache.json`（与视频同目录）
+
 ## 🔧 支持的服务商
 
 ### 语音识别 (Whisper)
 
 | 服务商 | 平台 | 费用 | 说明 |
 |--------|------|------|------|
-| `mlx` | 苹果芯片 | 免费 | **M1/M2/M3 Mac 首选** |
+| `cpp` | 任意 | 免费 | **whisper.cpp**，按需下载，GPU 加速 |
+| `mlx` | 苹果芯片 | 免费 | M1/M2/M3 Mac 首选 |
 | `local` | NVIDIA GPU | 免费 | 需要 CUDA，4GB+ 显存 |
 | `groq` | 任意 | 有免费额度 | 云端，非常快 |
 | `openai` | 任意 | $0.006/分钟 | 最稳定 |
@@ -260,7 +327,7 @@ python subgen.py run movie.mp4 --to zh \
   --secondary-color "#DDDDDD"
 ```
 
-样式也可以在 `config.yaml` 中配置，详见 [配置说明](docs/configuration.md)。
+样式也可以在 `config.yaml` 中配置，详见 [配置说明](docs/zh/configuration.md)。
 
 ## 📁 项目文件
 
@@ -281,14 +348,14 @@ python subgen.py run movie.mp4 --load-project movie.subgen --style-preset fansub
 
 ## 📖 文档
 
-- [安装指南](docs/installation.md)
-- [配置说明](docs/configuration.md)
+- [安装指南](docs/zh/installation.md)
+- [配置说明](docs/zh/configuration.md)
 - [API 服务商](docs/providers.md)
 - [常见问题](docs/faq.md)
 
 ## 🤝 贡献
 
-欢迎贡献！请查看 [CONTRIBUTING.md](CONTRIBUTING.md)。
+欢迎贡献！请查看 [CONTRIBUTING.md](CONTRIBUTING.md)（[中文版](docs/zh/contributing.md)）。
 
 ## 📄 许可证
 

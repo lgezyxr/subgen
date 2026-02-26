@@ -1,182 +1,300 @@
 # 📦 安装指南
 
+[English](../installation.md)
+
 ## 系统要求
 
-- **Python**: 3.10 或更高版本
-- **FFmpeg**: 必需，用于音频/视频处理
-- **GPU** (可选): 如果使用本地 Whisper，建议 NVIDIA GPU (4GB+ 显存)
+- **FFmpeg**：音频提取必需（`subgen init` 可自动下载）
+- **GPU**（可选）：NVIDIA GPU 或 Apple Silicon，用于本地 Whisper
 
 ---
 
-## 基础安装
+## 方式一：下载可执行文件（推荐）
 
-### 1. 安装 FFmpeg
+从 [GitHub Releases](https://github.com/lgezyxr/subgen/releases) 下载适合你平台的最新版本：
 
-**macOS**:
+| 平台 | 文件 |
+|------|------|
+| Windows | `subgen-windows-x64.exe` |
+| macOS (Intel) | `subgen-macos-x64` |
+| macOS (Apple Silicon) | `subgen-macos-arm64` |
+| Linux | `subgen-linux-x64` |
+
 ```bash
-brew install ffmpeg
+# macOS / Linux：添加执行权限
+chmod +x subgen-macos-arm64
+
+# 运行设置向导（按需下载 FFmpeg、whisper.cpp、模型）
+./subgen init
+
+# 开始生成字幕
+./subgen run movie.mp4 --to zh
 ```
 
-**Ubuntu/Debian**:
-```bash
-sudo apt update
-sudo apt install ffmpeg
-```
+无需 Python、pip 或虚拟环境。
 
-**Windows**:
-1. 下载 [FFmpeg](https://ffmpeg.org/download.html)
-2. 解压到 `C:\ffmpeg`
-3. 添加 `C:\ffmpeg\bin` 到系统 PATH
+---
 
-验证安装：
-```bash
-ffmpeg -version
-```
-
-### 2. 安装 SubGen
+## 方式二：从源码安装
 
 ```bash
-# 克隆项目
-git clone https://github.com/YOUR_USERNAME/subgen.git
+# 克隆
+git clone https://github.com/lgezyxr/subgen.git
 cd subgen
 
 # 创建虚拟环境
 python -m venv venv
 
-# 激活虚拟环境
-# Linux/macOS:
-source venv/bin/activate
-# Windows:
-venv\Scripts\activate
+# 激活
+source venv/bin/activate      # Linux/macOS
+venv\Scripts\activate         # Windows CMD
+.\venv\Scripts\Activate.ps1   # Windows PowerShell
 
 # 安装依赖
 pip install -r requirements.txt
+
+# 运行设置向导
+python subgen.py init
 ```
 
-### 3. 配置
+### Python 版本
 
+需要 Python 3.9 或更高版本。
+
+---
+
+## 设置向导：`subgen init`
+
+`init` 命令是一站式设置向导，配置你需要的一切：
+
+1. **硬件检测** — 检测 GPU、CUDA、Apple Silicon
+2. **语音识别** — 选择云端（Groq，免费）或本地（whisper.cpp，自动下载）
+3. **翻译** — 选择 LLM 服务商并认证（Copilot/ChatGPT 支持 OAuth）
+4. **FFmpeg** — 未在 PATH 中找到时自动下载
+5. **默认设置** — 语言、格式、样式预设
+
+`init` 完成后即可直接 `subgen run`。
+
+可随时重新运行 `subgen init` 更改配置。
+
+---
+
+## 安装 FFmpeg
+
+`subgen init` 可自动下载 FFmpeg。手动安装方法：
+
+### macOS
 ```bash
-# 复制配置模板
-cp config.example.yaml config.yaml
+brew install ffmpeg
+```
 
-# 编辑配置，填入 API Keys
-nano config.yaml  # 或使用你喜欢的编辑器
+### Ubuntu/Debian
+```bash
+sudo apt update && sudo apt install ffmpeg
+```
+
+### Windows
+```powershell
+# 方式 1：winget (Windows 10+)
+winget install FFmpeg
+
+# 方式 2：Chocolatey
+choco install ffmpeg
+
+# 方式 3：手动
+# 从 https://www.gyan.dev/ffmpeg/builds/ 下载
+# 解压到 C:\ffmpeg
+# 将 C:\ffmpeg\bin 添加到 PATH
+```
+
+验证：
+```bash
+ffmpeg -version
 ```
 
 ---
 
-## 可选：本地 Whisper
+## 平台特定设置
 
-如果你有 NVIDIA GPU，可以在本地运行 Whisper（免费且更快）：
+### 🍎 Apple Silicon (M1/M2/M3)
 
-### 1. 安装 CUDA
+**exe 用户**：`subgen init` 会提供 whisper.cpp Metal 加速选项。
 
-确保已安装 NVIDIA 驱动和 CUDA。检查：
+**源码用户**：强烈推荐 MLX Whisper — 快速且免费：
+
 ```bash
-nvidia-smi
+pip install mlx-whisper
 ```
 
-### 2. 安装 PyTorch
+```yaml
+whisper:
+  provider: "mlx"
+  local_model: "large-v3"
+```
 
-```bash
-# CUDA 11.8
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+---
 
-# CUDA 12.1
+### 🖥️ Windows + NVIDIA GPU
+
+**exe 用户**：`subgen init` 会提供 whisper.cpp CUDA 加速选项。
+
+**源码用户**：
+
+```powershell
+# 安装带 CUDA 的 PyTorch
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-```
 
-### 3. 安装 faster-whisper
-
-```bash
+# 安装 faster-whisper
 pip install faster-whisper
 ```
 
-### 4. 验证
+```yaml
+whisper:
+  provider: "local"
+  device: "cuda"
+  local_model: "large-v3"
+```
 
-```python
-from faster_whisper import WhisperModel
-model = WhisperModel("base", device="cuda")
-print("Whisper 本地运行成功！")
+**旧显卡 (GTX 10xx/Pascal)**：添加 `compute_type: "float32"`
+
+---
+
+### 🖥️ 无 GPU
+
+使用云端 API：
+
+```yaml
+whisper:
+  provider: "groq"  # 有免费额度，非常快
+  groq_key: "gsk_..."
 ```
 
 ---
 
-## 可选：本地 LLM (Ollama)
+### 🐧 Linux + NVIDIA GPU
 
-如果你想完全离线翻译：
+**源码用户**：
+
+```bash
+# 先安装 CUDA toolkit（如果未安装）
+# 然后：
+pip install torch --index-url https://download.pytorch.org/whl/cu121
+pip install faster-whisper
+```
+
+---
+
+## OAuth 设置（推荐）
+
+使用你现有的订阅 — 无需 API Key！
+
+### ChatGPT Plus/Pro
+
+```bash
+python subgen.py auth login chatgpt
+```
+
+浏览器打开 → 登录 → 完成！
+
+### GitHub Copilot
+
+```bash
+python subgen.py auth login copilot
+```
+
+按设备代码流程操作。
+
+### 查看状态
+
+```bash
+python subgen.py auth status
+```
+
+---
+
+## 可选：Ollama（离线 LLM）
+
+完全离线翻译：
 
 ### 1. 安装 Ollama
 
-**macOS/Linux**:
 ```bash
+# macOS/Linux
 curl -fsSL https://ollama.com/install.sh | sh
-```
 
-**Windows**:
-下载 [Ollama 安装包](https://ollama.com/download)
+# Windows：从 ollama.com 下载
+```
 
 ### 2. 下载模型
 
 ```bash
-# 推荐：Qwen2.5 (中文优化)
-ollama pull qwen2.5:14b
-
-# 或：Llama 3
-ollama pull llama3:8b
+ollama pull qwen2.5:14b   # 中文最佳 (16GB 显存)
+ollama pull qwen2.5:7b    # 较小 (8GB 显存)
+ollama pull llama3:8b     # 通用
 ```
 
-### 3. 启动服务
+### 3. 配置
 
-```bash
-ollama serve
-```
-
-### 4. 配置 SubGen
-
-在 `config.yaml` 中：
 ```yaml
 translation:
   provider: "ollama"
-  ollama_host: "http://localhost:11434"
-  ollama_model: "qwen2.5:14b"
+  model: "qwen2.5:14b"
+```
+
+---
+
+## 环境检查：`subgen doctor`
+
+运行 `subgen doctor` 验证你的设置：
+
+```bash
+python subgen.py doctor
+```
+
+检查配置、FFmpeg、Whisper 后端、LLM、GPU 和磁盘使用情况，显示哪些已就绪、哪些需要修复。
+
+---
+
+## 验证安装
+
+```bash
+# 检查一切是否正常
+python subgen.py doctor
+
+# 用短视频测试
+python subgen.py run test.mp4 -s --to zh --debug
 ```
 
 ---
 
 ## 常见问题
 
-### FFmpeg 找不到
+### PowerShell 执行策略 (Windows)
 
-**错误**: `FileNotFoundError: ffmpeg not found`
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
 
-**解决**:
-1. 确认 FFmpeg 已安装：`ffmpeg -version`
-2. 确认 FFmpeg 在 PATH 中
-3. 或在配置中指定完整路径
+### 找不到 CUDA
 
-### CUDA 内存不足
+1. 验证 CUDA 安装：`nvcc --version`
+2. 验证 PyTorch 能看到 GPU：`python -c "import torch; print(torch.cuda.is_available())"`
+3. 安装与你的 CUDA 版本匹配的 PyTorch
 
-**错误**: `CUDA out of memory`
+### 包冲突 (Anaconda)
 
-**解决**:
-1. 使用更小的模型：`local_model: "medium"` 或 `"small"`
-2. 关闭其他占用 GPU 的程序
-3. 使用云端 API 代替本地
+如果使用 Anaconda，改用 conda 环境：
 
-### API 请求失败
-
-**错误**: `APIError: 401 Unauthorized`
-
-**解决**:
-1. 检查 API Key 是否正确
-2. 检查 API Key 是否有效（是否过期、是否有额度）
-3. 检查网络连接
+```bash
+conda create -n subgen python=3.11
+conda activate subgen
+pip install -r requirements.txt
+```
 
 ---
 
 ## 下一步
 
-安装完成后，请查看：
-- [配置说明](configuration.md) - 详细配置选项
-- [API 提供商设置](providers.md) - 如何获取各服务的 API Key
+1. 运行 `python subgen.py init` 进行配置
+2. 试试：`python subgen.py run video.mp4 -s --to zh`
+3. 查看 [配置说明](configuration.md) 了解所有选项

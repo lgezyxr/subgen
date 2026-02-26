@@ -1,61 +1,64 @@
-# SubGen Release 计划 — 免安装可执行文件
+# SubGen Release Plan — No-Install Executables
 
-> 目标：用户下载一个文件就能用，不需要装 Python、pip、任何依赖。
+> Goal: Users download a single file and can start using it immediately — no Python, pip, or dependencies needed.
+
+[中文版](zh/release-plan.md)
 
 ---
 
-## 1. 打包方案：PyInstaller
+## 1. Packaging Approach: PyInstaller
 
-**为什么选 PyInstaller：**
-- 成熟稳定，社区大
-- 支持 Windows / macOS / Linux
-- 可打成单文件（`--onefile`）或单目录（`--onedir`）
-- 支持隐藏控制台窗口（GUI 以后用得到）
+**Why PyInstaller:**
+- Mature, stable, large community
+- Supports Windows / macOS / Linux
+- Can build single file (`--onefile`) or single directory (`--onedir`)
+- Supports hiding console window (useful for future GUI)
 
-**打包产物：**
+**Build artifacts:**
 
-| 平台 | 文件 | 预估大小 |
-|------|------|---------|
+| Platform | File | Estimated Size |
+|----------|------|---------------|
 | Windows | `subgen.exe` | ~50-80MB |
 | macOS (Intel) | `subgen-macos-x64` | ~50-80MB |
 | macOS (Apple Silicon) | `subgen-macos-arm64` | ~50-80MB |
 | Linux | `subgen-linux-x64` | ~50-80MB |
 
-> 注：大小主要来自 Python runtime + 依赖。如果包含 faster-whisper + PyTorch 会更大（~500MB+），所以建议 **基础包不含本地 Whisper**，用户用云端 Whisper（Groq 免费）或自行安装本地环境。
+> Note: Size mainly comes from Python runtime + dependencies. Including faster-whisper + PyTorch would push it to ~500MB+, so the **base package excludes local Whisper**. Users use cloud Whisper (Groq is free) or install the local whisper.cpp component via `subgen install`.
 
 ---
 
-## 2. 打包策略
+## 2. Packaging Strategy
 
-### 2.1 轻量版（推荐首发）
+### 2.1 Lightweight Version (Recommended for Initial Release)
 
-只包含核心功能，不含 PyTorch/faster-whisper：
+Includes only core features, excludes PyTorch/faster-whisper:
 
 ```
-包含：
-  ✅ CLI 界面 (click + rich)
-  ✅ 翻译 (openai, anthropic, httpx, requests)
-  ✅ 字幕生成/样式/项目文件
-  ✅ 云端 Whisper (Groq, OpenAI API)
-  ✅ OAuth 登录 (Copilot, ChatGPT)
-  ✅ FFmpeg 调用（需用户自行安装 FFmpeg）
+Included:
+  ✅ CLI interface (click + rich)
+  ✅ Translation (openai, anthropic, httpx, requests)
+  ✅ Subtitle generation/styles/project files
+  ✅ Cloud Whisper (Groq, OpenAI API)
+  ✅ OAuth login (Copilot, ChatGPT)
+  ✅ Component system (on-demand download)
+  ✅ FFmpeg auto-download
 
-不含：
-  ❌ faster-whisper / PyTorch（太大，500MB+）
-  ❌ MLX（仅 Apple Silicon）
+Excluded:
+  ❌ faster-whisper / PyTorch (too large, 500MB+)
+  ❌ MLX (Apple Silicon only)
 ```
 
-用户首次运行 `subgen init`，引导选 Groq（免费、快速、不需 GPU）作为 Whisper 后端。
+Users run `subgen init` on first launch, which guides them to select Groq (free, fast, no GPU needed) or install local whisper.cpp as the Whisper backend.
 
-### 2.2 完整版（以后考虑）
+### 2.2 Full Version (Future Consideration)
 
-如果需求量大，可以出含 CUDA 的 Windows 完整版（~800MB），但优先级低。
+If demand is high, a Windows full version with CUDA (~800MB) could be released, but it's low priority.
 
 ---
 
-## 3. PyInstaller 配置
+## 3. PyInstaller Configuration
 
-### 3.1 spec 文件：`subgen.spec`
+### 3.1 Spec File: `subgen.spec`
 
 ```python
 # subgen.spec
@@ -64,13 +67,13 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 block_cipher = None
 
-# 收集所有需要的数据文件
+# Collect required data files
 datas = [
     ('config.example.yaml', '.'),
     ('rules/', 'rules/'),
 ]
 
-# 隐式导入（动态 import 的模块）
+# Hidden imports (dynamically imported modules)
 hidden_imports = [
     'src.auth.copilot',
     'src.auth.openai_codex',
@@ -87,12 +90,12 @@ hidden_imports = [
     'requests',
 ]
 
-# 排除不需要的大模块
+# Exclude large unneeded modules
 excludes = [
     'torch', 'torchaudio', 'torchvision',
     'faster_whisper', 'ctranslate2',
     'mlx', 'mlx_whisper',
-    'numpy',  # 如果不用本地 whisper 则不需要
+    'numpy',
     'matplotlib', 'scipy', 'pandas',
     'tkinter', 'unittest',
 ]
@@ -126,42 +129,42 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,           # 压缩，减小体积
-    console=True,        # CLI 工具需要控制台
-    icon=None,           # 以后加图标
+    upx=True,
+    console=True,
+    icon=None,
 )
 ```
 
-### 3.2 需要解决的问题
+### 3.2 Issues to Address
 
-| 问题 | 方案 |
-|------|------|
-| `config.yaml` 路径 | 打包后从 exe 同目录 或 `~/.subgen/config.yaml` 读取 |
-| OAuth token 存储 | 已用 `~/.subgen/` 目录，不受影响 |
-| 缓存文件路径 | 保持在视频同目录 `.subgen_cache/`，不受影响 |
-| FFmpeg 依赖 | 检测 PATH 中是否有 ffmpeg，没有则提示安装 |
-| `rules/` 翻译规则 | 打包到 exe 内部，用 `sys._MEIPASS` 路径访问 |
-| 动态 import（providers） | 用 `hiddenimports` 显式声明 |
+| Issue | Solution |
+|-------|----------|
+| `config.yaml` path | Read from exe directory or `~/.subgen/config.yaml` after packaging |
+| OAuth token storage | Already uses `~/.subgen/` directory; unaffected |
+| Cache file path | Kept in video's directory `.subgen_cache/`; unaffected |
+| FFmpeg dependency | Auto-download via component system, or detect in PATH |
+| `rules/` translation rules | Bundled inside exe, accessed via `sys._MEIPASS` path |
+| Dynamic imports (providers) | Declared explicitly via `hiddenimports` |
 
-### 3.3 代码适配
+### 3.3 Code Adaptation
 
-需要在 `src/config.py` 和入口文件加一个路径检测：
+Path detection needs to be added to `src/config.py` and the entry file:
 
 ```python
 import sys
 from pathlib import Path
 
 def get_app_dir() -> Path:
-    """获取应用目录（兼容 PyInstaller 打包）"""
+    """Get application directory (compatible with PyInstaller packaging)"""
     if getattr(sys, 'frozen', False):
-        # 打包后，exe 同目录
+        # Packaged: exe's directory
         return Path(sys.executable).parent
     else:
-        # 开发模式，项目根目录
+        # Development mode: project root
         return Path(__file__).parent.parent
 
 def get_bundled_path(relative: str) -> Path:
-    """获取打包内的资源文件路径"""
+    """Get path to bundled resource files"""
     if getattr(sys, 'frozen', False):
         return Path(sys._MEIPASS) / relative
     else:
@@ -170,11 +173,11 @@ def get_bundled_path(relative: str) -> Path:
 
 ---
 
-## 4. GitHub Actions 自动发布
+## 4. GitHub Actions Auto-Release
 
-### 4.1 触发条件
+### 4.1 Trigger Condition
 
-推送 tag 时触发（如 `v0.2.0`）：
+Triggered on tag push (e.g., `v0.2.0`):
 
 ```yaml
 on:
@@ -182,7 +185,7 @@ on:
     tags: ['v*']
 ```
 
-### 4.2 workflow 文件：`.github/workflows/release.yml`
+### 4.2 Workflow File: `.github/workflows/release.yml`
 
 ```yaml
 name: Build & Release
@@ -263,86 +266,86 @@ jobs:
           prerelease: false
 ```
 
-### 4.3 发布流程
+### 4.3 Release Process
 
 ```bash
-# 1. 确保代码已合并到 main，CI 通过
-# 2. 更新版本号（pyproject.toml 或 __version__）
-# 3. 打 tag 并 push
+# 1. Ensure code is merged to main and CI passes
+# 2. Update version number (pyproject.toml or __version__)
+# 3. Tag and push
 git tag v0.2.0
 git push origin v0.2.0
 
-# 4. GitHub Actions 自动：
-#    → 在 4 个平台打包
-#    → 创建 GitHub Release
-#    → 上传 4 个可执行文件
-#    → 自动生成 changelog
+# 4. GitHub Actions automatically:
+#    → Builds on 4 platforms
+#    → Creates GitHub Release
+#    → Uploads 4 executables
+#    → Auto-generates changelog
 
-# 5. 用户在 GitHub Releases 页面下载对应平台的文件
+# 5. Users download the platform-appropriate file from GitHub Releases
 ```
 
 ---
 
-## 5. 用户体验
+## 5. User Experience
 
-### 下载后的使用流程
+### Post-Download Usage Flow
 
 ```bash
 # Windows
-subgen.exe init                              # 首次设置
-subgen.exe run movie.mp4 --to zh             # 生成字幕
+subgen.exe init                              # First-time setup
+subgen.exe run movie.mp4 --to zh             # Generate subtitles
 
 # macOS / Linux
-chmod +x subgen-macos-arm64                  # 添加执行权限
+chmod +x subgen-macos-arm64                  # Add execute permission
 ./subgen-macos-arm64 init
 ./subgen-macos-arm64 run movie.mp4 --to zh
 ```
 
-### 前置要求
+### Prerequisites
 
-- **FFmpeg**：仍然需要用户安装（用于音频提取和字幕嵌入）
-  - Windows: `winget install ffmpeg` 或下载 exe
+- **FFmpeg**: Auto-downloaded by `subgen init`, or install manually
+  - Windows: `winget install ffmpeg` or download exe
   - macOS: `brew install ffmpeg`
   - Linux: `sudo apt install ffmpeg`
-- **网络**：需要能访问 API（Groq/OpenAI/Copilot 等）
+- **Network**: Required for API access (Groq/OpenAI/Copilot etc.)
 
-### `subgen init` 引导
+### `subgen init` Guided Setup
 
-打包版首次运行时，wizard 自动启动：
-1. 检测 FFmpeg → 没有则提示安装
-2. 选 Whisper 后端 → 推荐 Groq（免费、无需 GPU）
-3. 选 LLM → 推荐 Copilot（用 GitHub 订阅）
-4. 设置目标语言
-5. 保存 config 到 `~/.subgen/config.yaml`
-
----
-
-## 6. 实施步骤
-
-### Phase 1：代码适配（1-2h）
-- [ ] 添加 `get_app_dir()` / `get_bundled_path()` 路径工具函数
-- [ ] config.yaml 搜索路径加入 `~/.subgen/config.yaml`
-- [ ] rules/ 文件加载兼容 `sys._MEIPASS`
-- [ ] 添加 `__version__` 变量
-- [ ] 本地测试 PyInstaller 打包
-
-### Phase 2：CI/CD 配置（1h）
-- [ ] 创建 `subgen.spec`
-- [ ] 创建 `.github/workflows/release.yml`
-- [ ] 测试推一个 `v0.2.0-beta` tag 验证流程
-
-### Phase 3：首次发布（30min）
-- [ ] 修复可能的打包问题
-- [ ] 推 `v0.2.0` tag
-- [ ] 验证 4 个平台的产物都能正常运行
-- [ ] 更新 README 加下载链接
+On first launch of the packaged version, the wizard starts automatically:
+1. Detect/download FFmpeg
+2. Select Whisper backend → recommends Groq (free, no GPU needed) or local whisper.cpp
+3. Select LLM → recommends Copilot (uses GitHub subscription)
+4. Set target language
+5. Save config to `~/.subgen/config.yaml`
 
 ---
 
-## 7. 以后的增强
+## 6. Implementation Steps
 
-- **自动更新检查**：启动时检查 GitHub Releases 有没有新版本
-- **FFmpeg 内置**：打包时把 ffmpeg 一起打进去（体积会增加 ~50MB）
-- **Windows 安装器**：用 NSIS 或 Inno Setup 做安装包（加 PATH、桌面快捷方式）
-- **Homebrew formula**：`brew install subgen`
-- **GUI 版本**：Tauri 打包后也走同样的 release 流程
+### Phase 1: Code Adaptation (1-2h)
+- [ ] Add `get_app_dir()` / `get_bundled_path()` path utility functions
+- [ ] Add `~/.subgen/config.yaml` to config.yaml search path
+- [ ] Make rules/ file loading compatible with `sys._MEIPASS`
+- [ ] Add `__version__` variable
+- [ ] Test PyInstaller packaging locally
+
+### Phase 2: CI/CD Configuration (1h)
+- [ ] Create `subgen.spec`
+- [ ] Create `.github/workflows/release.yml`
+- [ ] Test by pushing a `v0.2.0-beta` tag to verify the process
+
+### Phase 3: First Release (30min)
+- [ ] Fix any packaging issues
+- [ ] Push `v0.2.0` tag
+- [ ] Verify all 4 platform artifacts work correctly
+- [ ] Update README with download links
+
+---
+
+## 7. Future Enhancements
+
+- **Auto-update check**: Check GitHub Releases for new versions on startup
+- **Bundled FFmpeg**: Include ffmpeg in the package (~50MB increase)
+- **Windows installer**: Use NSIS or Inno Setup for installer package (adds PATH, desktop shortcut)
+- **Homebrew formula**: `brew install subgen`
+- **GUI version**: Tauri packaging follows the same release process

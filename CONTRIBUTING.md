@@ -1,31 +1,34 @@
-# 贡献指南
+# Contributing Guide
 
-感谢你对 SubGen 的兴趣！欢迎贡献代码、文档、Bug 报告或功能建议。
+Thank you for your interest in SubGen! We welcome code contributions, documentation, bug reports, and feature suggestions.
 
-## 🏗️ 项目架构
+[中文版](docs/zh/contributing.md)
 
-SubGen v0.2 采用分层架构：
+## 🏗️ Project Architecture
+
+SubGen v0.2 uses a layered architecture:
 
 ```
 CLI (subgen.py)
- └── SubGenEngine (src/engine.py)      # 核心编排引擎
-      ├── transcribe (src/transcribe.py)  # 语音识别
-      ├── translate (src/translate.py)    # 翻译
-      ├── subtitle (src/subtitle.py)      # 字幕渲染 (SRT/ASS/VTT)
-      └── styles (src/styles.py)          # 样式系统
+ └── SubGenEngine (src/engine.py)        # Core orchestration engine
+      ├── transcribe (src/transcribe.py)  # Speech recognition
+      ├── translate (src/translate.py)    # Translation
+      ├── subtitle (src/subtitle.py)     # Subtitle rendering (SRT/ASS/VTT)
+      └── styles (src/styles.py)         # Style system
 ```
 
-### 核心组件
+### Core Components
 
-- **SubGenEngine** (`src/engine.py`): 核心引擎，编排 audio extraction → transcription → translation → proofreading → export。不做任何终端 I/O，通过回调报告进度。
-- **StyleProfile** (`src/styles.py`): 字幕样式数据模型，包含 `FontStyle`（字体/颜色/描边等）和布局参数。内置预设：`default`、`netflix`、`fansub`、`minimal`。
-- **SubtitleProject** (`src/project.py`): 项目数据模型，包含 segments、style、metadata、state。支持序列化为 `.subgen` JSON 文件。
-- **CLI** (`subgen.py`): 薄壳层，负责解析参数、构建配置、调用 Engine、显示进度。
+- **SubGenEngine** (`src/engine.py`): Core engine that orchestrates audio extraction → transcription → translation → proofreading → export. Performs no terminal I/O; reports progress via callbacks.
+- **StyleProfile** (`src/styles.py`): Subtitle style data model containing `FontStyle` (font/color/outline, etc.) and layout parameters. Built-in presets: `default`, `netflix`, `fansub`, `minimal`.
+- **SubtitleProject** (`src/project.py`): Project data model containing segments, style, metadata, and state. Serializable to `.subgen` JSON files.
+- **ComponentManager** (`src/components.py`): Manages on-demand download, installation, and updates of components (whisper.cpp, models, FFmpeg).
+- **CLI** (`subgen.py`): Thin shell responsible for argument parsing, config building, calling the Engine, and displaying progress.
 
-### 添加新的样式预设
+### Adding a New Style Preset
 
-1. 打开 `src/styles.py`
-2. 在 `PRESETS` 字典中添加新预设：
+1. Open `src/styles.py`
+2. Add a new preset to the `PRESETS` dictionary:
    ```python
    PRESETS["my_preset"] = StyleProfile(
        name="my_preset",
@@ -34,115 +37,117 @@ CLI (subgen.py)
        margin_bottom=30,
    )
    ```
-3. 在 `subgen.py` 的 `--style-preset` 的 `click.Choice` 中添加新预设名称
-4. 更新文档
+3. Add the new preset name to the `click.Choice` for `--style-preset` in `subgen.py`
+4. Update documentation
 
-## 🐛 报告 Bug
+## 🐛 Reporting Bugs
 
-1. 先搜索 [Issues](https://github.com/YOUR_USERNAME/subgen/issues) 看看是否已有类似问题
-2. 如果没有，创建新 Issue，包含：
-   - 你的环境 (OS, Python 版本, GPU)
-   - 重现步骤
-   - 期望行为 vs 实际行为
-   - 错误日志 (如果有)
+1. Search [Issues](https://github.com/lgezyxr/subgen/issues) first to check for duplicates
+2. If none found, create a new Issue including:
+   - Your environment (OS, Python version, GPU)
+   - Steps to reproduce
+   - Expected vs. actual behavior
+   - Error logs (if any)
 
-## 💡 功能建议
+## 💡 Feature Suggestions
 
-1. 创建 Issue，标记 `feature request`
-2. 描述你想要的功能
-3. 说明使用场景
+1. Create an Issue tagged `feature request`
+2. Describe the feature you'd like
+3. Explain your use case
 
-## 🔧 提交代码
+## 🔧 Submitting Code
 
-### 开发环境设置
+### Development Environment Setup
 
 ```bash
-# 克隆项目
-git clone https://github.com/YOUR_USERNAME/subgen.git
+# Clone the project
+git clone https://github.com/lgezyxr/subgen.git
 cd subgen
 
-# 创建虚拟环境
+# Create virtual environment
 python -m venv venv
 source venv/bin/activate
 
-# 安装开发依赖
+# Install dependencies
 pip install -r requirements.txt
 pip install -e .
 
-# 安装开发工具
+# Install development tools
 pip install black ruff pytest
 ```
 
-### 代码风格
+### Code Style
 
-我们使用：
-- **black** 格式化代码
-- **ruff** 检查代码质量
+We use:
+- **black** for code formatting
+- **ruff** for code quality checks
 
-提交前运行：
+Before committing, run:
 ```bash
 black .
 ruff check .
 ```
 
-### 提交 Pull Request
+### Submitting a Pull Request
 
-1. Fork 项目
-2. 创建 feature 分支: `git checkout -b feature/amazing-feature`
-3. 提交更改: `git commit -m 'Add amazing feature'`
-4. 推送: `git push origin feature/amazing-feature`
-5. 创建 Pull Request
+1. Fork the project
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Commit your changes: `git commit -m 'Add amazing feature'`
+4. Push: `git push origin feature/amazing-feature`
+5. Create a Pull Request
 
-### Commit 消息格式
+### Commit Message Format
 
 ```
 <type>: <description>
 
-[可选的详细描述]
+[optional detailed description]
 ```
 
-Type:
-- `feat`: 新功能
-- `fix`: Bug 修复
-- `docs`: 文档更新
-- `refactor`: 重构
-- `test`: 测试相关
-- `chore`: 构建/工具
+Types:
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation update
+- `refactor`: Code refactoring
+- `test`: Test-related changes
+- `chore`: Build/tooling changes
 
-示例：
+Examples:
 ```
 feat: add Groq API support for whisper
 fix: handle empty subtitle segments
 docs: update installation guide for Windows
 ```
 
-## 📝 文档贡献
+## 📝 Documentation Contributions
 
-文档在 `docs/` 目录，欢迎：
-- 修复错误
-- 改进描述
-- 添加示例
-- 翻译成其他语言
+Documentation lives in `docs/`. We welcome:
+- Error corrections
+- Improved descriptions
+- Additional examples
+- Translations to other languages
 
-## 🧪 测试
+English documentation is the primary (authoritative) version. Chinese translations are in `docs/zh/`.
+
+## 🧪 Testing
 
 ```bash
-# 运行测试
+# Run all tests
 pytest
 
-# 运行特定测试
+# Run specific tests
 pytest tests/test_transcribe.py
 ```
 
-## 📋 优先事项
+## 📋 Priority Areas
 
-当前最需要帮助的方向：
+Areas where help is most needed:
 
-1. **测试用例**: 增加测试覆盖率
-2. **文档**: 多语言翻译
-3. **新提供商**: 支持更多 API
-4. **Bug 修复**: 查看 Issues
+1. **Test cases**: Increase test coverage
+2. **Documentation**: Translations and improvements
+3. **New providers**: Support for additional APIs
+4. **Bug fixes**: Check Issues on GitHub
 
-## 📜 许可证
+## 📜 License
 
-贡献的代码将采用 MIT 许可证发布。
+Contributed code is released under the MIT License.

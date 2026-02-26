@@ -1,14 +1,41 @@
 # 📦 Installation Guide
 
+[中文版](zh/installation.md)
+
 ## Requirements
 
-- **Python**: 3.9+
-- **FFmpeg**: Required for audio extraction
+- **FFmpeg**: Required for audio extraction (auto-downloaded by `subgen init`)
 - **GPU** (optional): NVIDIA GPU or Apple Silicon for local Whisper
 
 ---
 
-## Quick Install
+## Option 1: Download Executable (Recommended)
+
+Download the latest release for your platform from [GitHub Releases](https://github.com/lgezyxr/subgen/releases):
+
+| Platform | File |
+|----------|------|
+| Windows | `subgen-windows-x64.exe` |
+| macOS (Intel) | `subgen-macos-x64` |
+| macOS (Apple Silicon) | `subgen-macos-arm64` |
+| Linux | `subgen-linux-x64` |
+
+```bash
+# macOS / Linux: add execute permission
+chmod +x subgen-macos-arm64
+
+# Run setup wizard (downloads FFmpeg, whisper.cpp, models as needed)
+./subgen init
+
+# Start generating subtitles
+./subgen run movie.mp4 --to zh
+```
+
+No Python, pip, or virtual environment needed.
+
+---
+
+## Option 2: Install from Source
 
 ```bash
 # Clone
@@ -30,9 +57,31 @@ pip install -r requirements.txt
 python subgen.py init
 ```
 
+### Python Version
+
+Python 3.9 or higher is required.
+
+---
+
+## Setup Wizard: `subgen init`
+
+The `init` command is a one-stop setup wizard that configures everything you need:
+
+1. **Hardware detection** — Detects GPU, CUDA, Apple Silicon
+2. **Speech recognition** — Choose cloud (Groq, free) or local (whisper.cpp with auto-download)
+3. **Translation** — Choose LLM provider and authenticate (OAuth for Copilot/ChatGPT)
+4. **FFmpeg** — Auto-downloads if not found in PATH
+5. **Defaults** — Language, format, style preset
+
+After `init` completes, you're ready to `subgen run`.
+
+You can re-run `subgen init` at any time to reconfigure.
+
 ---
 
 ## Install FFmpeg
+
+FFmpeg can be auto-downloaded by `subgen init`. To install manually:
 
 ### macOS
 ```bash
@@ -69,7 +118,9 @@ ffmpeg -version
 
 ### 🍎 Apple Silicon (M1/M2/M3)
 
-MLX Whisper is **highly recommended** - fast and free:
+**Exe users**: `subgen init` will offer whisper.cpp with Metal acceleration.
+
+**Source users**: MLX Whisper is highly recommended — fast and free:
 
 ```bash
 pip install mlx-whisper
@@ -84,6 +135,10 @@ whisper:
 ---
 
 ### 🖥️ Windows + NVIDIA GPU
+
+**Exe users**: `subgen init` will offer whisper.cpp with CUDA acceleration.
+
+**Source users**:
 
 ```powershell
 # Install PyTorch with CUDA
@@ -104,7 +159,7 @@ whisper:
 
 ---
 
-### 🖥️ Windows without GPU
+### 🖥️ Without GPU
 
 Use cloud APIs:
 
@@ -118,6 +173,8 @@ whisper:
 
 ### 🐧 Linux + NVIDIA GPU
 
+**Source users**:
+
 ```bash
 # Install CUDA toolkit first (if not installed)
 # Then:
@@ -129,7 +186,7 @@ pip install faster-whisper
 
 ## OAuth Setup (Recommended)
 
-Use your existing subscriptions - no API keys needed!
+Use your existing subscriptions — no API keys needed!
 
 ### ChatGPT Plus/Pro
 
@@ -186,11 +243,23 @@ translation:
 
 ---
 
+## Environment Check: `subgen doctor`
+
+Run `subgen doctor` to verify your setup:
+
+```bash
+python subgen.py doctor
+```
+
+This checks config, FFmpeg, Whisper backend, LLM, GPU, and disk usage, showing what's ready and what needs fixing.
+
+---
+
 ## Verify Installation
 
 ```bash
 # Check everything works
-python subgen.py init
+python subgen.py doctor
 
 # Test with a short video
 python subgen.py run test.mp4 -s --to zh --debug

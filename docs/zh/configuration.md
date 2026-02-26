@@ -20,11 +20,13 @@ python subgen.py video.mp4 --config /path/to/my-config.yaml
 whisper:
   # 提供商选择
   # - local: 本地运行 (需要 GPU)
+  # - mlx: Apple Silicon MLX (Mac 推荐)
+  # - cpp: whisper.cpp (exe 用户推荐，通过 subgen install 安装)
   # - openai: OpenAI Whisper API ($0.006/分钟)
   # - groq: Groq API (有免费额度，超快)
   provider: "openai"
   
-  # 本地模型选择 (仅 provider: local 时有效)
+  # 本地模型选择 (仅 provider: local/mlx 时有效)
   # tiny (39M) → base (74M) → small (244M) → medium (769M) → large-v3 (1.5B)
   # 模型越大越准，但需要更多显存
   local_model: "large-v3"
@@ -33,6 +35,11 @@ whisper:
   # cuda: NVIDIA GPU (推荐)
   # cpu: CPU (很慢，不推荐)
   device: "cuda"
+  
+  # whisper.cpp 设置 (仅 provider: cpp 时有效)
+  cpp_model: "large-v3"     # 模型名称（需通过 subgen install 下载）
+  cpp_threads: 4            # CPU 线程数
+  cpp_gpu_layers: 0         # GPU 加速层数 (0 = 自动)
   
   # API Keys
   openai_key: "sk-..."      # OpenAI API Key
@@ -271,6 +278,23 @@ translation:
   ollama_host: "http://localhost:11434"
   ollama_model: "qwen2.5:14b"
 ```
+
+### 本地 whisper.cpp 方案（exe 用户）
+
+```yaml
+whisper:
+  provider: "cpp"
+  cpp_model: "large-v3"
+  cpp_threads: 4
+
+translation:
+  provider: "copilot"
+
+output:
+  target_language: "zh"
+```
+
+先安装引擎和模型：`subgen install whisper --with-model`
 
 ### 中文优化方案 (DeepSeek)
 

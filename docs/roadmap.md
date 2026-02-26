@@ -46,6 +46,10 @@
 - [x] Project file format (`.subgen` JSON)
 - [x] Engine architecture refactor (CLI → Engine → transcribe/translate/subtitle/styles)
 - [x] CLI new options (`--style-preset`, `--primary-font`, `--primary-color`, `--secondary-font`, `--secondary-color`, `--save-project`, `--load-project`)
+- [x] Component system (on-demand download of whisper.cpp, models, FFmpeg)
+- [x] whisper.cpp backend (`cpp` provider via subprocess)
+- [x] `subgen doctor` environment diagnostics
+- [x] `subgen install` / `subgen uninstall` component management
 - [ ] API key validation and better error messages
 - [ ] Progress display improvements (percentage, ETA)
 - [ ] Resume interrupted processing (for large files)
@@ -232,7 +236,7 @@
 | Version | Target Date | Key Features |
 |---------|-------------|--------------|
 | v0.1.0 | ✅ Completed | MVP - Core workflow |
-| v0.2.0 | ✅ Completed | Style system, project files, engine refactor |
+| v0.2.0 | ✅ Completed | Style system, project files, engine refactor, component system, whisper.cpp |
 | v0.3.0 | +5 weeks | Translation quality |
 | v0.4.0 | +7 weeks | Batch processing |
 | v0.5.0 | +11 weeks | Speaker diarization |

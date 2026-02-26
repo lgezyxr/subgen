@@ -19,7 +19,7 @@ python subgen.py run video.mp4 --config /path/to/config.yaml
 
 ```yaml
 whisper:
-  # Provider: local | mlx | openai | groq
+  # Provider: local | mlx | cpp | openai | groq
   provider: "local"
   
   # Local/MLX model: tiny | base | small | medium | large-v3
@@ -33,6 +33,11 @@ whisper:
   # float32: Compatible with older GPUs (GTX 10xx)
   # int8: Smallest memory footprint
   compute_type: "float16"
+  
+  # whisper.cpp settings (for provider: cpp)
+  cpp_model: "large-v3"     # Model name (must be downloaded via subgen install)
+  cpp_threads: 4            # CPU thread count
+  cpp_gpu_layers: 0         # GPU acceleration layers (0 = auto)
   
   # API keys (if using cloud providers)
   openai_key: "sk-..."
@@ -161,6 +166,23 @@ translation:
 output:
   target_language: "zh"
 ```
+
+### Local whisper.cpp (Exe Users)
+
+```yaml
+whisper:
+  provider: "cpp"
+  cpp_model: "large-v3"
+  cpp_threads: 4
+
+translation:
+  provider: "copilot"
+
+output:
+  target_language: "zh"
+```
+
+Install the engine and model first: `subgen install whisper --with-model`
 
 ### Fully Offline
 
