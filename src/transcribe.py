@@ -192,6 +192,9 @@ def transcribe_audio(audio_path: Path, config: Dict[str, Any]) -> List[Segment]:
         segments = _transcribe_openai(audio_path, config)
     elif provider == 'groq':
         segments = _transcribe_groq(audio_path, config)
+    elif provider == 'cpp':
+        from .transcribe_cpp import transcribe_cpp
+        segments = transcribe_cpp(audio_path, config)
     else:
         raise ValueError(f"Unsupported Whisper provider: {provider}")
 

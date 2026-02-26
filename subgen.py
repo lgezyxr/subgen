@@ -44,7 +44,7 @@ def cli():
 @click.option('--proofread', '-p', is_flag=True, help='Add proofreading pass after translation (uses full story context)')
 @click.option('--proofread-only', is_flag=True, help='Only run proofreading on existing translated subtitles (requires cache or .srt)')
 @click.option('--bilingual', '-b', is_flag=True, help='Generate bilingual subtitles')
-@click.option('--whisper-provider', type=click.Choice(['local', 'mlx', 'openai', 'groq']), help='Override Whisper provider from config')
+@click.option('--whisper-provider', type=click.Choice(['local', 'mlx', 'openai', 'groq', 'cpp']), help='Override Whisper provider from config')
 @click.option('--llm-provider', type=click.Choice(['openai', 'claude', 'deepseek', 'ollama', 'copilot', 'chatgpt']), help='Override LLM provider from config')
 @click.option('--embed', is_flag=True, help='Burn subtitles into video')
 @click.option('--config', '-c', type=click.Path(), default='config.yaml', help='Config file path')
@@ -121,6 +121,7 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
     config_path = Path(config)
     if not config_path.exists():
         alt_paths = [
+            Path.home() / '.subgen' / 'config.yaml',
             Path.home() / '.config' / 'subgen' / 'config.yaml',
             Path(__file__).parent / 'config.yaml',
         ]
@@ -527,13 +528,230 @@ def process_shortcut(ctx, input_path):
     ctx.invoke(run, input_path=input_path)
 
 
+@cli.command()
+@click.argument('component', type=str)
+@click.argument('variant', type=str, required=False)
+@click.option('--with-model', is_flag=True, help='Also install recommended model (for whisper)')
+def install(component, variant, with_model):
+    """Install a component (whisper, model, ffmpeg).
+
+    \b
+    EXAMPLES:
+        subgen install whisper           Install whisper.cpp engine
+        subgen install whisper --with-model  Install engine + recommended model
+        subgen install model large-v3    Install a specific Whisper model
+        subgen install ffmpeg            Install FFmpeg
+    """
+    from src.components import ComponentManager
+    from src.hardware import detect_hardware
+    from rich.progress import Progress, BarColumn, DownloadColumn, TransferSpeedColumn
+
+    cm = ComponentManager()
+
+    def make_progress_callback(progress, task_id):
+        def callback(downloaded, total):
+            if total > 0:
+                progress.update(task_id, completed=downloaded, total=total)
+        return callback
+
+    if component == 'whisper':
+        console.print("\n🔍 Detecting hardware...")
+        hw = detect_hardware()
+        if hw.has_nvidia_gpu and hw.has_cuda:
+            engine_variant = "cuda"
+            console.print(f"  ✓ {hw.nvidia_gpu_name} ({hw.nvidia_vram_gb:.0f}GB VRAM)")
+        elif hw.is_apple_silicon:
+            engine_variant = "metal"
+            console.print("  ✓ Apple Silicon detected")
+        else:
+            engine_variant = "cpu"
+            console.print("  ℹ️  No GPU detected, using CPU variant")
+
+        comp_id = f"whisper-cpp-{engine_variant}"
+        console.print(f"\n📥 Installing whisper.cpp ({engine_variant})...")
+
+        with Progress(BarColumn(), DownloadColumn(), TransferSpeedColumn(), console=console) as progress:
+            task = progress.add_task("Downloading", total=0)
+            cm.install(comp_id, on_progress=make_progress_callback(progress, task))
+
+        console.print("[green]  ✓ Installed![/green]")
+
+        if with_model:
+            # Recommend model based on hardware
+            if hw.has_nvidia_gpu and hw.nvidia_vram_gb and hw.nvidia_vram_gb >= 8:
+                model = "large-v3"
+            elif hw.is_apple_silicon:
+                model = "large-v3"
+            elif hw.has_nvidia_gpu and hw.nvidia_vram_gb and hw.nvidia_vram_gb >= 5:
+                model = "medium"
+            else:
+                model = "small"
+
+            console.print(f"\n📥 Installing Whisper model ({model})...")
+            with Progress(BarColumn(), DownloadColumn(), TransferSpeedColumn(), console=console) as progress:
+                task = progress.add_task("Downloading", total=0)
+                cm.install_model(model, on_progress=make_progress_callback(progress, task))
+            console.print("[green]  ✓ Installed![/green]")
+
+    elif component == 'model':
+        model_name = variant or "large-v3"
+        console.print(f"\n📥 Installing Whisper model ({model_name})...")
+        with Progress(BarColumn(), DownloadColumn(), TransferSpeedColumn(), console=console) as progress:
+            task = progress.add_task("Downloading", total=0)
+            cm.install_model(model_name, on_progress=make_progress_callback(progress, task))
+        console.print("[green]  ✓ Installed![/green]")
+
+    elif component == 'ffmpeg':
+        console.print("\n📥 Installing FFmpeg...")
+        with Progress(BarColumn(), DownloadColumn(), TransferSpeedColumn(), console=console) as progress:
+            task = progress.add_task("Downloading", total=0)
+            cm.install("ffmpeg", on_progress=make_progress_callback(progress, task))
+        console.print("[green]  ✓ Installed![/green]")
+
+    else:
+        # Try direct component ID
+        try:
+            console.print(f"\n📥 Installing {component}...")
+            with Progress(BarColumn(), DownloadColumn(), TransferSpeedColumn(), console=console) as progress:
+                task = progress.add_task("Downloading", total=0)
+                cm.install(component, on_progress=make_progress_callback(progress, task))
+            console.print("[green]  ✓ Installed![/green]")
+        except ValueError as e:
+            console.print(f"[red]Error: {e}[/red]")
+            raise SystemExit(1)
+
+
+@cli.command()
+def doctor():
+    """Diagnose the SubGen environment."""
+    from src.components import ComponentManager
+    from src.hardware import detect_hardware
+    from src.auth.store import get_credential
+
+    cm = ComponentManager()
+    hw = detect_hardware()
+
+    console.print("\n🏥 SubGen Environment Check")
+    console.print("═" * 30)
+
+    # Config
+    from src.config import get_subgen_dir
+    config_locations = [Path("config.yaml"), get_subgen_dir() / "config.yaml"]
+    config_found = None
+    for loc in config_locations:
+        if loc.exists():
+            config_found = loc
+            break
+    if config_found:
+        console.print(f"  Config:     {config_found} [green]✓[/green]")
+    else:
+        console.print("  Config:     Not found [red]✗[/red] (run: subgen init)")
+
+    # FFmpeg
+    ffmpeg = cm.find_ffmpeg()
+    if ffmpeg:
+        console.print(f"  FFmpeg:     {ffmpeg} [green]✓[/green]")
+    else:
+        console.print("  FFmpeg:     Not found [red]✗[/red] (run: subgen install ffmpeg)")
+
+    # Whisper engine
+    engine = cm.find_whisper_engine()
+    if engine:
+        console.print(f"  Whisper:    {engine} [green]✓[/green]")
+    else:
+        console.print("  Whisper:    Not found [red]✗[/red] (run: subgen install whisper)")
+
+    # Models
+    model_found = False
+    for name in ["large-v3", "medium", "small", "base", "tiny"]:
+        model = cm.find_whisper_model(name)
+        if model:
+            size_mb = model.stat().st_size / (1024 * 1024)
+            console.print(f"  Model:      {name} ({size_mb:.0f}MB) [green]✓[/green]")
+            model_found = True
+            break
+    if not model_found:
+        console.print("  Model:      Not found [red]✗[/red] (run: subgen install model large-v3)")
+
+    # LLM auth
+    copilot = get_credential("copilot")
+    chatgpt = get_credential("openai-codex")
+    if copilot:
+        console.print("  LLM:        Copilot (authenticated) [green]✓[/green]")
+    elif chatgpt:
+        console.print("  LLM:        ChatGPT (authenticated) [green]✓[/green]")
+    else:
+        console.print("  LLM:        Not configured [yellow]○[/yellow]")
+
+    # GPU
+    if hw.has_nvidia_gpu:
+        vram = f" ({hw.nvidia_vram_gb:.0f}GB)" if hw.nvidia_vram_gb else ""
+        console.print(f"  GPU:        {hw.nvidia_gpu_name}{vram} [green]✓[/green]")
+    elif hw.is_apple_silicon:
+        console.print("  GPU:        Apple Silicon [green]✓[/green]")
+    else:
+        console.print("  GPU:        Not detected [dim]○[/dim]")
+
+    # Disk usage
+    usage = cm.disk_usage()
+    total = sum(usage.values())
+    if total > 0:
+        console.print(f"  Disk:       {total / (1024 * 1024):.1f} MB")
+    else:
+        console.print("  Disk:       (no components installed)")
+
+    # Overall status
+    if config_found and ffmpeg:
+        console.print("\n  Status: [green]✅ Ready to go![/green]")
+    else:
+        console.print("\n  Status: [red]❌ Run 'subgen init' to get started[/red]")
+    console.print()
+
+
+@cli.command()
+@click.argument('component', type=str)
+@click.argument('variant', type=str, required=False)
+def uninstall(component, variant):
+    """Uninstall a component.
+
+    \b
+    EXAMPLES:
+        subgen uninstall model large-v3   Remove a model
+        subgen uninstall whisper           Remove whisper.cpp engine
+        subgen uninstall ffmpeg            Remove FFmpeg
+    """
+    from src.components import ComponentManager
+
+    cm = ComponentManager()
+
+    if component == 'model' and variant:
+        comp_id = f"model-whisper-{variant}"
+    elif component == 'whisper':
+        # Find which whisper variant is installed
+        for suffix in ["cuda", "metal", "cpu"]:
+            cid = f"whisper-cpp-{suffix}"
+            if cm.is_installed(cid):
+                comp_id = cid
+                break
+        else:
+            console.print("[yellow]No whisper engine installed[/yellow]")
+            return
+    else:
+        comp_id = component
+
+    if cm.uninstall(comp_id):
+        console.print(f"[green]✓ Uninstalled {comp_id}[/green]")
+    else:
+        console.print(f"[yellow]{comp_id} is not installed[/yellow]")
+
+
 def main():
     """Entry point that handles both 'subgen video.mp4' and 'subgen run video.mp4'."""
     import sys
 
     if len(sys.argv) > 1:
         first_arg = sys.argv[1]
-        commands = ['run', 'init', 'auth', '--help', '-h', '--version']
+        commands = ['run', 'init', 'auth', 'install', 'uninstall', 'doctor', '--help', '-h', '--version']
         if first_arg not in commands and not first_arg.startswith('-'):
             if Path(first_arg).exists() or '.' in first_arg:
                 sys.argv.insert(1, 'run')

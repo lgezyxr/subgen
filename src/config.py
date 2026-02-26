@@ -1,5 +1,6 @@
 """Configuration loading module"""
 
+import sys
 import yaml
 from pathlib import Path
 from typing import Dict, Any
@@ -34,12 +35,37 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 }
 
 
-def load_config(config_path: str = "config.yaml") -> Dict[str, Any]:
-    """Load configuration file"""
-    path = Path(config_path)
+def load_config(config_path: str = None) -> Dict[str, Any]:
+    """Load configuration file.
 
-    if not path.exists():
-        raise FileNotFoundError(f"Config file not found: {config_path}")
+    Search order: config_path arg → ./config.yaml → ~/.subgen/config.yaml
+
+    Args:
+        config_path: Explicit config file path. If None, searches default locations.
+
+    Returns:
+        Merged configuration dictionary.
+
+    Raises:
+        FileNotFoundError: If no config file found.
+    """
+    if config_path:
+        path = Path(config_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Config file not found: {config_path}")
+    else:
+        # Search default locations
+        candidates = [
+            Path("config.yaml"),
+            get_subgen_dir() / "config.yaml",
+        ]
+        path = None
+        for candidate in candidates:
+            if candidate.exists():
+                path = candidate
+                break
+        if path is None:
+            raise FileNotFoundError("Config file not found in ./config.yaml or ~/.subgen/config.yaml")
 
     with open(path, 'r', encoding='utf-8') as f:
         config = yaml.safe_load(f) or {}
@@ -69,3 +95,26 @@ def get_api_key(config: Dict[str, Any], provider: str, key_name: str) -> str:
         key = os.environ.get(env_var_name, '')
 
     return key
+
+
+def get_subgen_dir() -> Path:
+    """Get the SubGen data directory (~/.subgen/).
+
+    Returns:
+        Path to ~/.subgen/ directory.
+    """
+    return Path.home() / ".subgen"
+
+
+def get_bundled_path(relative: str) -> Path:
+    """Get path to a bundled resource, compatible with PyInstaller.
+
+    Args:
+        relative: Relative path within the bundle.
+
+    Returns:
+        Absolute path to the resource.
+    """
+    # PyInstaller sets sys._MEIPASS to the temp extraction dir
+    base = getattr(sys, "_MEIPASS", Path(__file__).parent.parent)
+    return Path(base) / relative

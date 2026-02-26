@@ -15,6 +15,11 @@ WHISPER_PROVIDERS = {
         "description": "Free, requires NVIDIA GPU",
         "requires_key": False
     },
+    "cpp": {
+        "name": "Local (whisper.cpp)",
+        "description": "Free, offline, downloads engine + model (~3GB)",
+        "requires_key": False
+    },
     "mlx": {
         "name": "MLX (Apple Silicon)",
         "description": "Free, optimized for M1/M2/M3 Mac",
@@ -228,6 +233,56 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
         key = get_api_key(whisper_info)
         config["whisper"][f"{whisper_provider}_key"] = key
 
+    if whisper_provider == "cpp":
+        # Install whisper.cpp engine + model
+        from .components import ComponentManager
+        cm = ComponentManager()
+
+        # Pick engine variant based on hardware
+        if hw.has_nvidia_gpu and hw.has_cuda:
+            engine_variant = "cuda"
+        elif hw.is_apple_silicon:
+            engine_variant = "metal"
+        else:
+            engine_variant = "cpu"
+
+        comp_id = f"whisper-cpp-{engine_variant}"
+        print(f"\n  📥 Downloading whisper.cpp engine ({engine_variant})...")
+        try:
+            cm.install(comp_id)
+            print("  ✅ Engine installed")
+        except Exception as e:
+            print(f"  ⚠️  Engine install failed: {e}")
+            print("  You can install later: subgen install whisper")
+
+        # Recommend and download model
+        if hw.has_nvidia_gpu and hw.nvidia_vram_gb and hw.nvidia_vram_gb >= 8:
+            rec_model = "large-v3"
+        elif hw.is_apple_silicon:
+            rec_model = "large-v3"
+        elif hw.has_nvidia_gpu and hw.nvidia_vram_gb and hw.nvidia_vram_gb >= 5:
+            rec_model = "medium"
+        else:
+            rec_model = "small"
+
+        print(f"\n  Recommended model: {rec_model}")
+        try:
+            dl_response = input(f"  Download {rec_model} model? [Y/n]: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            dl_response = "y"
+
+        if dl_response != "n":
+            print(f"  📥 Downloading Whisper {rec_model} model...")
+            try:
+                cm.install_model(rec_model)
+                print("  ✅ Model installed")
+            except Exception as e:
+                print(f"  ⚠️  Model install failed: {e}")
+                print(f"  You can install later: subgen install model {rec_model}")
+
+        config["whisper"]["cpp_model"] = rec_model
+        config["whisper"]["cpp_threads"] = 4
+
     if whisper_provider == "local":
         # Check if faster-whisper is installed
         try:
@@ -321,16 +376,61 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
     elif llm_provider == "copilot":
         config["llm"]["model"] = "gpt-4o-mini"
 
-    # Step 3: Target language
+    # Step 3: FFmpeg check
     print("\n" + "-" * 50)
-    print("\n🎯 Default Target Language:\n")
+    print("\n🔧 Step 3: FFmpeg\n")
+
+    import shutil
+    from .components import ComponentManager
+    cm_ffmpeg = ComponentManager()
+    ffmpeg_path = cm_ffmpeg.find_ffmpeg()
+    if ffmpeg_path:
+        print(f"  ✅ FFmpeg found: {ffmpeg_path}")
+    else:
+        print("  ✗ FFmpeg not found")
+        try:
+            dl_ff = input("  📥 Download FFmpeg automatically? [Y/n]: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            dl_ff = "y"
+        if dl_ff != "n":
+            try:
+                cm_ffmpeg.install("ffmpeg")
+                print("  ✅ FFmpeg installed")
+            except Exception as e:
+                print(f"  ⚠️  FFmpeg install failed: {e}")
+                print("  You can install later: subgen install ffmpeg")
+
+    # Step 4: Defaults
+    print("\n" + "-" * 50)
+    print("\n🎯 Step 4: Default Output Settings\n")
     print("  Common options: zh (中文), en (English), ja (日本語), ko (한국어)")
 
     try:
-        lang = input("  Enter target language [zh]: ").strip() or "zh"
+        lang = input("  Target language [zh]: ").strip() or "zh"
         config["output"]["target_language"] = lang
     except (EOFError, KeyboardInterrupt):
         config["output"]["target_language"] = "zh"
+
+    try:
+        bi = input("  Enable bilingual subtitles? [y/N]: ").strip().lower()
+        config["output"]["bilingual"] = bi == "y"
+    except (EOFError, KeyboardInterrupt):
+        pass
+
+    try:
+        fmt = input("  Subtitle format (srt/ass/vtt) [srt]: ").strip().lower() or "srt"
+        if fmt in ("srt", "ass", "vtt"):
+            config["output"]["format"] = fmt
+    except (EOFError, KeyboardInterrupt):
+        pass
+
+    if config["output"].get("format") == "ass":
+        try:
+            preset = input("  Style preset (default/netflix/fansub/minimal) [default]: ").strip().lower() or "default"
+            if preset in ("default", "netflix", "fansub", "minimal"):
+                config.setdefault("styles", {})["preset"] = preset
+        except (EOFError, KeyboardInterrupt):
+            pass
 
     # Summary
     print("\n" + "=" * 50)
@@ -355,6 +455,7 @@ def check_config_exists(config_path: Path = None) -> bool:
     locations = [
         Path("config.yaml"),
         Path("config.yml"),
+        Path.home() / ".subgen" / "config.yaml",
     ]
 
     return any(p.exists() for p in locations)
