@@ -600,7 +600,13 @@ subgen update whisper        # 更新 whisper.cpp 引擎
 
 ## 6. Setup Wizard 改造
 
-### 6.1 exe 版 wizard 流程
+### 6.1 核心原则：init = 一站式设置
+
+**用户跑完 `subgen init` 后就能直接 `subgen run`。** 所有需要的组件（引擎、模型、FFmpeg、OAuth）都在 init 过程中完成，不需要用户再手动跑 install 命令。
+
+install/doctor/update/uninstall 作为高级管理命令保留，但普通用户不需要碰。
+
+### 6.2 完整 init 流程
 
 ```
 $ subgen init
@@ -608,28 +614,38 @@ $ subgen init
 🎬 SubGen Setup Wizard
 ══════════════════════
 
-📢 Step 1: Speech Recognition
+🔍 Detecting hardware...
+  ✓ NVIDIA GeForce RTX 3060 (12GB VRAM)
+  ✓ CUDA 12.4
+
+──────────────────────
+📢 Step 1/4: Speech Recognition
 
   How do you want to transcribe audio?
 
   1. ☁️  Groq (Cloud)        — Free, fast, no GPU needed ⭐
-  2. 💻 Local (whisper.cpp)  — Free, offline, needs download
+  2. 💻 Local (whisper.cpp)  — Free, offline, needs download (~3.1GB)
   3. ☁️  OpenAI Whisper API  — $0.006/min, most reliable
 
 > 2
 
-🔍 Detecting hardware...
-  ✓ NVIDIA GeForce RTX 3060 (12GB VRAM)
+📥 Setting up local speech recognition...
 
-📥 Installing whisper.cpp engine (CUDA)...
-  Downloading: 15.2 MB [==================] 100% ✓
+  Downloading whisper.cpp engine (CUDA)...
+  15.2 MB [██████████████████] 100% ✓
 
-📥 Downloading Whisper model (large-v3, recommended for your GPU)...
-  Downloading: 3.1 GB [==================] 100% ✓
+  Recommended model for your GPU (12GB): large-v3 (best quality)
+  Other options: tiny (75MB) | base (142MB) | small (466MB) | medium (1.5GB)
+  
+  Download large-v3? [Y/n]: y
+  
+  Downloading Whisper large-v3 model...
+  3.1 GB [██████████████████] 100% (1m 23s) ✓
+
+  ✅ Local Whisper ready
 
 ──────────────────────
-
-🌍 Step 2: Translation
+🌍 Step 2/4: Translation
 
   1. 🐙 GitHub Copilot      — Use your Copilot subscription
   2. 💬 ChatGPT Plus/Pro    — Use your ChatGPT subscription
@@ -640,53 +656,141 @@ $ subgen init
 > 1
 
   Starting GitHub OAuth login...
-  Open this URL: https://github.com/login/device
-  Enter code: ABCD-1234
+  
+  👉 Open this URL: https://github.com/login/device
+  👉 Enter code: ABCD-1234
+  
   Waiting for authorization... ✓
+  ✅ GitHub Copilot connected
 
 ──────────────────────
+🔧 Step 3/4: FFmpeg
 
-🔍 Checking FFmpeg...
-  ✓ Found: /usr/bin/ffmpeg (7.0.1)
-
-──────────────────────
-
-🎯 Step 3: Defaults
-
-  Target language [zh]: zh
-
-══════════════════════
-✅ Setup Complete!
-
-  Whisper:  whisper.cpp CUDA + large-v3
-  LLM:     GitHub Copilot
-  Target:  zh (中文)
-
-  Config saved to: ~/.subgen/config.yaml
-
-  Try it:
-    subgen run movie.mp4 --to zh
-```
-
-### 6.2 FFmpeg 自动安装
-
-如果检测不到 ffmpeg，询问用户：
-
-```
-🔍 Checking FFmpeg...
-  ✗ FFmpeg not found in PATH
+  🔍 Checking FFmpeg...
+  ✗ FFmpeg not found
 
   FFmpeg is required for video processing.
 
-  1. 📥 Download FFmpeg automatically (~80MB)
-  2. 🔧 I'll install it myself
-  3. ⏭️  Skip (won't be able to process video files)
+  📥 Download FFmpeg automatically? [Y/n]: y
 
-> 1
+  Downloading FFmpeg...
+  80 MB [██████████████████] 100% ✓
+  ✅ FFmpeg installed to ~/.subgen/bin/
 
-📥 Downloading FFmpeg...
-  Downloading: 80 MB [==================] 100% ✓
-  Installed to: ~/.subgen/bin/ffmpeg
+──────────────────────
+🎯 Step 4/4: Defaults
+
+  Target language [zh]: zh
+  Enable bilingual subtitles? [y/N]: y
+  Default subtitle format (srt/ass/vtt) [srt]: ass
+  Style preset (default/netflix/fansub/minimal) [default]: fansub
+
+══════════════════════════════════════════
+✅ All set! SubGen is ready to use.
+══════════════════════════════════════════
+
+  Summary:
+  ────────
+  Whisper:   Local (whisper.cpp CUDA + large-v3)
+  LLM:       GitHub Copilot (claude-sonnet-4)
+  FFmpeg:    ~/.subgen/bin/ffmpeg
+  Language:  zh (中文)
+  Bilingual: yes
+  Format:    ASS (fansub preset)
+  Disk used: 3.3 GB (~/.subgen/)
+
+  Config: ~/.subgen/config.yaml
+
+  🚀 Try it now:
+    subgen run movie.mp4
+```
+
+### 6.3 init 内部逻辑
+
+```python
+def run_setup_wizard():
+    """一站式设置，完成后用户可以直接 subgen run"""
+
+    cm = ComponentManager()
+    hw = detect_hardware()
+
+    # Step 1: Whisper
+    whisper_provider = prompt_whisper_choice(hw)
+
+    if whisper_provider == 'cpp':
+        # 自动下载引擎（根据硬件选 CUDA/Metal/CPU）
+        engine_variant = pick_engine_variant(hw)
+        cm.install(f"whisper-cpp-{engine_variant}", on_progress=rich_progress)
+
+        # 自动推荐 + 下载模型
+        recommended_model = recommend_model(hw)
+        model_choice = prompt_model_choice(recommended_model)
+        cm.install(f"model-whisper-{model_choice}", on_progress=rich_progress)
+
+    elif whisper_provider == 'groq':
+        groq_key = prompt_api_key("Groq", "https://console.groq.com/keys")
+
+    # Step 2: LLM
+    llm_provider = prompt_llm_choice()
+    if llm_provider in ('copilot', 'chatgpt'):
+        run_oauth(llm_provider)
+    elif needs_key(llm_provider):
+        api_key = prompt_api_key(llm_provider)
+
+    # Step 3: FFmpeg（自动检测，没有就下载）
+    ffmpeg = cm.find_ffmpeg() or shutil.which('ffmpeg')
+    if not ffmpeg:
+        if confirm("Download FFmpeg automatically?"):
+            cm.install("ffmpeg", on_progress=rich_progress)
+        else:
+            warn("FFmpeg not installed. Video processing won't work.")
+
+    # Step 4: 默认输出设置
+    target_lang = prompt("Target language", default="zh")
+    bilingual = confirm("Enable bilingual subtitles?", default=False)
+    format = prompt_choice("Subtitle format", ["srt", "ass", "vtt"], default="srt")
+    if format == "ass":
+        preset = prompt_choice("Style preset", ["default", "netflix", "fansub", "minimal"])
+
+    # 保存 config
+    save_config(...)
+    print_summary(...)
+```
+
+### 6.4 重新运行 init
+
+用户可以随时 `subgen init` 重新设置。如果已有配置，显示当前设置并允许修改：
+
+```
+$ subgen init
+
+🎬 SubGen Setup Wizard
+══════════════════════
+
+  ℹ️ Existing config found. Current settings:
+  
+    Whisper: Local (whisper.cpp CUDA + large-v3) ✓
+    LLM:     GitHub Copilot ✓
+    FFmpeg:  ~/.subgen/bin/ffmpeg ✓
+
+  Reconfigure? [y/N]: y
+  
+  (进入正常 wizard 流程...)
+```
+
+### 6.5 `subgen run` 零配置检测
+
+如果用户直接跑 `subgen run` 但没有 config，自动触发 init：
+
+```python
+# subgen.py run 命令入口
+def run(input_path, ...):
+    config = load_config()
+    if config is None:
+        print("⚠️  No config found. Let's set up SubGen first.\n")
+        run_setup_wizard()
+        config = load_config()
+    # 继续正常流程...
 ```
 
 ---
