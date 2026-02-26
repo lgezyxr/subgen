@@ -36,9 +36,6 @@ jobs:
           - os: ubuntu-latest
             artifact: subgen-linux-x64
             rename: mv dist/subgen dist/subgen-linux-x64 && chmod +x dist/subgen-linux-x64
-          - os: macos-13
-            artifact: subgen-macos-x64
-            rename: mv dist/subgen dist/subgen-macos-x64
           - os: macos-latest
             artifact: subgen-macos-arm64
             rename: mv dist/subgen dist/subgen-macos-arm64
