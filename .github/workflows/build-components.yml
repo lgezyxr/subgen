@@ -1,0 +1,200 @@
+name: Build whisper.cpp Components
+
+on:
+  workflow_dispatch:
+    inputs:
+      whisper_cpp_version:
+        description: 'whisper.cpp version (tag or "latest")'
+        required: false
+        default: 'latest'
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux-cuda:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ggml-org/whisper.cpp
+      - uses: Jimver/cuda-toolkit@v0.2.21
+        with:
+          cuda: '12.6.3'
+      - name: Build
+        run: |
+          cmake -B build -DGGML_CUDA=ON
+          cmake --build build --config Release -t whisper-cli
+      - name: Package
+        run: |
+          cp build/bin/whisper-cli whisper-cpp
+          tar -czf whisper-cpp-cuda-linux-x64.tar.gz whisper-cpp
+      - uses: actions/upload-artifact@v4
+        with:
+          name: whisper-cpp-cuda-linux-x64
+          path: whisper-cpp-cuda-linux-x64.tar.gz
+
+  build-linux-cpu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ggml-org/whisper.cpp
+      - name: Build
+        run: |
+          cmake -B build
+          cmake --build build --config Release -t whisper-cli
+      - name: Package
+        run: |
+          cp build/bin/whisper-cli whisper-cpp
+          tar -czf whisper-cpp-cpu-linux-x64.tar.gz whisper-cpp
+      - uses: actions/upload-artifact@v4
+        with:
+          name: whisper-cpp-cpu-linux-x64
+          path: whisper-cpp-cpu-linux-x64.tar.gz
+
+  build-windows-cuda:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ggml-org/whisper.cpp
+      - uses: Jimver/cuda-toolkit@v0.2.21
+        with:
+          cuda: '12.6.3'
+      - name: Build
+        run: |
+          cmake -B build -DGGML_CUDA=ON
+          cmake --build build --config Release -t whisper-cli
+      - name: Package
+        shell: bash
+        run: |
+          cp build/bin/Release/whisper-cli.exe whisper-cpp.exe
+          7z a whisper-cpp-cuda-windows-x64.zip whisper-cpp.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: whisper-cpp-cuda-windows-x64
+          path: whisper-cpp-cuda-windows-x64.zip
+
+  build-windows-cpu:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ggml-org/whisper.cpp
+      - name: Build
+        run: |
+          cmake -B build
+          cmake --build build --config Release -t whisper-cli
+      - name: Package
+        shell: bash
+        run: |
+          cp build/bin/Release/whisper-cli.exe whisper-cpp.exe
+          7z a whisper-cpp-cpu-windows-x64.zip whisper-cpp.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: whisper-cpp-cpu-windows-x64
+          path: whisper-cpp-cpu-windows-x64.zip
+
+  build-macos-metal:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ggml-org/whisper.cpp
+      - name: Build
+        run: |
+          cmake -B build -DGGML_METAL=ON
+          cmake --build build --config Release -t whisper-cli
+      - name: Package
+        run: |
+          cp build/bin/whisper-cli whisper-cpp
+          tar -czf whisper-cpp-metal-macos-arm64.tar.gz whisper-cpp
+      - uses: actions/upload-artifact@v4
+        with:
+          name: whisper-cpp-metal-macos-arm64
+          path: whisper-cpp-metal-macos-arm64.tar.gz
+
+  build-macos-cpu:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ggml-org/whisper.cpp
+      - name: Build
+        run: |
+          cmake -B build
+          cmake --build build --config Release -t whisper-cli
+      - name: Package
+        run: |
+          cp build/bin/whisper-cli whisper-cpp
+          tar -czf whisper-cpp-cpu-macos-x64.tar.gz whisper-cpp
+      - uses: actions/upload-artifact@v4
+        with:
+          name: whisper-cpp-cpu-macos-x64
+          path: whisper-cpp-cpu-macos-x64.tar.gz
+
+  release:
+    needs:
+      - build-linux-cuda
+      - build-linux-cpu
+      - build-windows-cuda
+      - build-windows-cpu
+      - build-macos-metal
+      - build-macos-cpu
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Generate components.json
+        run: |
+          cat > artifacts/components.json << 'EOF'
+          {
+            "version": 1,
+            "components": {
+              "whisper-cpp-cuda-linux-x64": {
+                "file": "whisper-cpp-cuda-linux-x64.tar.gz",
+                "platform": "linux",
+                "arch": "x64",
+                "accelerator": "cuda"
+              },
+              "whisper-cpp-cpu-linux-x64": {
+                "file": "whisper-cpp-cpu-linux-x64.tar.gz",
+                "platform": "linux",
+                "arch": "x64",
+                "accelerator": "cpu"
+              },
+              "whisper-cpp-cuda-windows-x64": {
+                "file": "whisper-cpp-cuda-windows-x64.zip",
+                "platform": "windows",
+                "arch": "x64",
+                "accelerator": "cuda"
+              },
+              "whisper-cpp-cpu-windows-x64": {
+                "file": "whisper-cpp-cpu-windows-x64.zip",
+                "platform": "windows",
+                "arch": "x64",
+                "accelerator": "cpu"
+              },
+              "whisper-cpp-metal-macos-arm64": {
+                "file": "whisper-cpp-metal-macos-arm64.tar.gz",
+                "platform": "macos",
+                "arch": "arm64",
+                "accelerator": "metal"
+              },
+              "whisper-cpp-cpu-macos-x64": {
+                "file": "whisper-cpp-cpu-macos-x64.tar.gz",
+                "platform": "macos",
+                "arch": "x64",
+                "accelerator": "cpu"
+              }
+            }
+          }
+          EOF
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: components-v1
+          name: Components v1
+          files: artifacts/**/*
+          body: 'Pre-built whisper.cpp binaries for SubGen'

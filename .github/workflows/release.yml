@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pyyaml rich click openai groq anthropic httpx requests
+      - name: Run tests
+        run: pytest tests/ -v
+
+  build:
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: subgen-windows-x64.exe
+            rename: mv dist/subgen.exe dist/subgen-windows-x64.exe
+          - os: ubuntu-latest
+            artifact: subgen-linux-x64
+            rename: mv dist/subgen dist/subgen-linux-x64 && chmod +x dist/subgen-linux-x64
+          - os: macos-13
+            artifact: subgen-macos-x64
+            rename: mv dist/subgen dist/subgen-macos-x64
+          - os: macos-latest
+            artifact: subgen-macos-arm64
+            rename: mv dist/subgen dist/subgen-macos-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install -r requirements-build.txt
+      - name: Build
+        run: pyinstaller subgen.spec
+      - name: Rename artifact
+        run: ${{ matrix.rename }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true

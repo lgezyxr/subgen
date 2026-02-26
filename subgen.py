@@ -9,11 +9,14 @@ from pathlib import Path
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
 
+from src import __version__
+
 console = Console()
 
 
 # Create CLI group
 @click.group()
+@click.version_option(version=__version__, prog_name='subgen')
 def cli():
     """
     SubGen - AI-powered subtitle generation tool

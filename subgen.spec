@@ -1,0 +1,92 @@
+# -*- mode: python ; coding: utf-8 -*-
+"""PyInstaller spec for SubGen."""
+
+block_cipher = None
+
+a = Analysis(
+    ['subgen.py'],
+    pathex=[],
+    binaries=[],
+    datas=[
+        ('rules/', 'rules/'),
+        ('config.example.yaml', '.'),
+    ],
+    hiddenimports=[
+        # src modules
+        'src',
+        'src.audio',
+        'src.cache',
+        'src.components',
+        'src.config',
+        'src.embedded',
+        'src.engine',
+        'src.hardware',
+        'src.logger',
+        'src.project',
+        'src.styles',
+        'src.subtitle',
+        'src.transcribe',
+        'src.transcribe_cpp',
+        'src.translate',
+        'src.wizard',
+        'src.auth',
+        'src.auth.copilot',
+        'src.auth.openai_codex',
+        'src.auth.store',
+        # Third-party
+        'yaml',
+        'rich',
+        'click',
+        'openai',
+        'groq',
+        'anthropic',
+        'httpx',
+        'requests',
+    ],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[
+        'torch',
+        'torchaudio',
+        'torchvision',
+        'faster_whisper',
+        'ctranslate2',
+        'mlx',
+        'mlx_whisper',
+        'numpy',
+        'matplotlib',
+        'scipy',
+        'pandas',
+        'tkinter',
+        'unittest',
+    ],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
+    noarchive=False,
+)
+
+pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    [],
+    name='subgen',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=True,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+)
