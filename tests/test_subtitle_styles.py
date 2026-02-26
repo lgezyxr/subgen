@@ -35,7 +35,7 @@ class TestAssWithStyle:
         generate_subtitle(segs, out, {"output": {"format": "ass", "bilingual": True}}, style=style)
         content = out.read_text()
         # Should be single Dialogue with \N
-        dialogue_lines = [l for l in content.splitlines() if l.startswith("Dialogue:")]
+        dialogue_lines = [line for line in content.splitlines() if line.startswith("Dialogue:")]
         assert len(dialogue_lines) == 1
         line = dialogue_lines[0]
         assert "你好\\N" in line
@@ -53,7 +53,7 @@ class TestAssWithStyle:
         # With default load_style, style is not None, so it uses \N format.
         generate_subtitle(segs, out, {"output": {"format": "ass", "bilingual": True}})
         content = out.read_text()
-        dialogue_lines = [l for l in content.splitlines() if l.startswith("Dialogue:")]
+        dialogue_lines = [line for line in content.splitlines() if line.startswith("Dialogue:")]
         # With resolved style (default), should use single Dialogue + \N
         assert len(dialogue_lines) == 1
 

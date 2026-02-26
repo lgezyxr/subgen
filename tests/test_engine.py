@@ -23,7 +23,8 @@ class TestEngineInit:
 
     def test_init_with_callback(self):
         calls = []
-        cb = lambda stage, cur, tot: calls.append((stage, cur, tot))
+        def cb(stage, cur, tot):
+            calls.append((stage, cur, tot))
         engine = SubGenEngine({}, on_progress=cb)
         engine.on_progress('extracting', 0, 1)
         assert calls == [('extracting', 0, 1)]
