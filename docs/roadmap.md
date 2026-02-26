@@ -36,12 +36,16 @@
 ---
 
 ### v0.2.0 - Stability & Usability
-> Estimated: 1-2 weeks
+> ✅ Completed
 
 **Goal**: Improve user experience, handle edge cases
 
 #### Feature Enhancements
-- [ ] Setup wizard (`subgen init`)
+- [x] Setup wizard (`subgen init`)
+- [x] Style system (StyleProfile + presets: default/netflix/fansub/minimal)
+- [x] Project file format (`.subgen` JSON)
+- [x] Engine architecture refactor (CLI → Engine → transcribe/translate/subtitle/styles)
+- [x] CLI new options (`--style-preset`, `--primary-font`, `--primary-color`, `--secondary-font`, `--secondary-color`, `--save-project`, `--load-project`)
 - [ ] API key validation and better error messages
 - [ ] Progress display improvements (percentage, ETA)
 - [ ] Resume interrupted processing (for large files)
@@ -143,7 +147,7 @@
 
 #### Tech Stack
 - [ ] Framework selection: Tauri (Rust + Web) or Electron
-- [ ] UI design
+- [ ] UI design (Engine architecture ready — GUI can call SubGenEngine directly)
 
 #### Core Features
 - [ ] Drag-and-drop video upload
@@ -228,7 +232,7 @@
 | Version | Target Date | Key Features |
 |---------|-------------|--------------|
 | v0.1.0 | ✅ Completed | MVP - Core workflow |
-| v0.2.0 | +2 weeks | Stability & usability |
+| v0.2.0 | ✅ Completed | Style system, project files, engine refactor |
 | v0.3.0 | +5 weeks | Translation quality |
 | v0.4.0 | +7 weeks | Batch processing |
 | v0.5.0 | +11 weeks | Speaker diarization |

@@ -216,6 +216,97 @@ advanced:
 
 ---
 
+## Subtitle Styles
+
+SubGen supports customizable subtitle styles for ASS format output. Styles are configured via the `styles` block in `config.yaml`, CLI options, or a combination of both.
+
+### Configuration
+
+```yaml
+styles:
+  # Start from a preset: default | netflix | fansub | minimal
+  preset: "default"
+
+  # Override primary subtitle (translation) style
+  primary:
+    font: "Noto Sans CJK SC"
+    size: 60
+    color: "#FFFFFF"
+    bold: false
+    outline: 3
+    outline_color: "#000000"
+
+  # Override secondary subtitle (original) style
+  secondary:
+    font: "Arial"
+    size: 45
+    color: "#AAAAAA"
+    bold: false
+    outline: 2
+```
+
+### Preset Inheritance
+
+You can select a preset and override specific properties. Unspecified properties inherit from the preset:
+
+```yaml
+styles:
+  preset: "netflix"
+  primary:
+    font: "Noto Sans CJK SC"  # Override font only; size, color, etc. from netflix preset
+```
+
+### Color Format
+
+Colors use standard `#RRGGBB` hex format (e.g., `#FFFFFF` for white, `#00FFFF` for cyan). SubGen automatically converts hex colors to ASS format (`&HAABBGGRR`) internally.
+
+Alpha channel is also supported via `#AARRGGBB` format (e.g., `#80000000` for 50% transparent black).
+
+### Preset Details
+
+#### `default`
+| Property | Primary | Secondary |
+|----------|---------|-----------|
+| Font | Arial | Arial |
+| Size | 60 | 45 |
+| Color | `#FFFFFF` | `#AAAAAA` |
+| Bold | No | No |
+| Outline | 3.0 | 2.0 |
+| Outline Color | `#000000` | `#000000` |
+| Shadow | 1.0 | 1.0 |
+
+#### `netflix`
+| Property | Primary | Secondary |
+|----------|---------|-----------|
+| Font | Netflix Sans | Netflix Sans |
+| Size | 55 | 40 |
+| Color | `#FFFFFF` | `#CCCCCC` |
+| Bold | No | No |
+| Outline | 2.0 | 1.5 |
+| Shadow | 0.0 | 0.0 |
+
+#### `fansub`
+| Property | Primary | Secondary |
+|----------|---------|-----------|
+| Font | 方正准圆_GBK | Arial |
+| Size | 65 | 45 |
+| Color | `#00FFFF` | `#FFFFFF` |
+| Bold | Yes | No |
+| Outline | 3.0 | 2.0 |
+| Shadow | 1.5 | 1.0 |
+
+#### `minimal`
+| Property | Primary | Secondary |
+|----------|---------|-----------|
+| Font | Helvetica | Helvetica |
+| Size | 50 | 38 |
+| Color | `#FFFFFF` | `#BBBBBB` |
+| Bold | No | No |
+| Outline | 1.0 | 0.5 |
+| Shadow | 0.0 | 0.0 |
+
+---
+
 ## Environment Variables
 
 API keys can be set via environment variables (config file takes precedence):

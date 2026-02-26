@@ -17,6 +17,8 @@
 - 📝 **AI proofreading**: Full-story context review for consistency and accuracy
 - 🔒 **OAuth support**: Use ChatGPT Plus or GitHub Copilot subscriptions (no API key needed!)
 - 💾 **Smart caching**: Transcription results cached for fast re-runs
+- 🎨 **Style presets**: Built-in styles (default/netflix/fansub/minimal) with full customization
+- 📁 **Project files**: Save/load `.subgen` project files for iterative workflows
 - 💰 **Transparent costs**: Use your own API keys
 
 ## 🚀 Quick Start
@@ -77,12 +79,30 @@ python subgen.py run <video> [options]
 | `--whisper-provider` | local / mlx / openai / groq |
 | `--llm-provider` | openai / claude / deepseek / ollama / chatgpt / copilot |
 
+#### Style Options
+
+| Option | Description |
+|--------|-------------|
+| `--style-preset` | Style preset: default / netflix / fansub / minimal |
+| `--primary-font` | Override primary subtitle font |
+| `--primary-color` | Override primary subtitle color (hex, e.g. `#FFFFFF`) |
+| `--secondary-font` | Override secondary subtitle font |
+| `--secondary-color` | Override secondary subtitle color (hex, e.g. `#AAAAAA`) |
+
+#### Project Options
+
+| Option | Description |
+|--------|-------------|
+| `--save-project PATH` | Save `.subgen` project file after processing |
+| `--load-project PATH` | Load from `.subgen` project file (skip transcription/translation) |
+
 #### Other Options
 
 | Option | Description |
 |--------|-------------|
 | `-o, --output` | Output file path |
 | `--force-transcribe` | Ignore cache, re-transcribe |
+| `--embed` | Burn subtitles into video |
 | `--debug` | Show detailed debug logs |
 | `--config` | Use custom config file |
 
@@ -231,6 +251,55 @@ done
 # Show detailed logs for troubleshooting
 python subgen.py run video.mp4 -s --to zh --debug
 ```
+
+## 🎨 Style Presets
+
+SubGen includes built-in style presets for ASS subtitle rendering. Use `--style-preset` to select one:
+
+```bash
+# Use Netflix-style subtitles
+python subgen.py run movie.mp4 --to zh --style-preset netflix
+
+# Fansub style with custom primary color
+python subgen.py run movie.mp4 --to zh --style-preset fansub --primary-color "#00FF00"
+```
+
+### Available Presets
+
+| Preset | Primary Font | Primary Color | Secondary Color | Description |
+|--------|-------------|---------------|-----------------|-------------|
+| `default` | Arial | `#FFFFFF` | `#AAAAAA` | Clean, universal style |
+| `netflix` | Netflix Sans | `#FFFFFF` | `#CCCCCC` | Netflix-inspired, minimal outline |
+| `fansub` | 方正准圆_GBK | `#00FFFF` | `#FFFFFF` | Bold fansub style, cyan primary |
+| `minimal` | Helvetica | `#FFFFFF` | `#BBBBBB` | Ultra-clean, thin outline |
+
+You can override individual properties on top of any preset:
+
+```bash
+python subgen.py run movie.mp4 --to zh \
+  --style-preset netflix \
+  --primary-font "Noto Sans CJK SC" \
+  --secondary-color "#DDDDDD"
+```
+
+Styles can also be configured in `config.yaml`. See [Configuration](docs/configuration.md) for details.
+
+## 📁 Project Files
+
+SubGen can save and load `.subgen` project files, which store all segments, styles, metadata, and processing state in JSON format.
+
+```bash
+# Generate subtitles and save project
+python subgen.py run movie.mp4 --to zh --save-project movie.subgen
+
+# Later: load project and re-export (e.g., with different style)
+python subgen.py run movie.mp4 --load-project movie.subgen --style-preset fansub -o movie_fansub.ass
+```
+
+Project files enable:
+- **Iterative workflows**: Transcribe once, experiment with styles and settings
+- **State preservation**: Resume or re-export without re-processing
+- **Sharing**: Share transcription/translation results with collaborators
 
 ## 📖 Documentation
 

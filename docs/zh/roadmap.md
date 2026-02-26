@@ -33,12 +33,16 @@
 ---
 
 ### v0.2.0 - 稳定性 & 易用性
-> 预计开发时间：1-2 周
+> ✅ 已完成
 
 **目标**：提升用户体验，处理边界情况
 
 #### 功能增强
-- [ ] 配置向导 (`subgen init`)
+- [x] 配置向导 (`subgen init`)
+- [x] 样式系统（StyleProfile + 预设：default/netflix/fansub/minimal）
+- [x] 项目文件格式（`.subgen` JSON）
+- [x] Engine 架构重构（CLI → Engine → transcribe/translate/subtitle/styles）
+- [x] CLI 新选项（`--style-preset`、`--primary-font`、`--primary-color`、`--secondary-font`、`--secondary-color`、`--save-project`、`--load-project`）
 - [ ] API Key 验证和错误提示优化
 - [ ] 进度显示优化（百分比、预估时间）
 - [ ] 断点续传（大文件处理中断后可恢复）
@@ -140,7 +144,7 @@
 
 #### 技术选型
 - [ ] 框架选择：Tauri (Rust + Web) 或 Electron
-- [ ] UI 设计
+- [ ] UI 设计（Engine 架构已准备就绪 — GUI 可直接调用 SubGenEngine）
 
 #### 核心功能
 - [ ] 拖拽上传视频
@@ -225,7 +229,7 @@
 | 版本 | 目标日期 | 关键功能 |
 |------|----------|----------|
 | v0.1.0 | ✅ 已完成 | MVP - 核心流程 |
-| v0.2.0 | +2 周 | 稳定性 & 易用性 |
+| v0.2.0 | ✅ 已完成 | 样式系统、项目文件、引擎重构 |
 | v0.3.0 | +5 周 | 翻译质量提升 |
 | v0.4.0 | +7 周 | 批量处理 |
 | v0.5.0 | +11 周 | 说话人分离 |

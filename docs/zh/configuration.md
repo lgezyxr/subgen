@@ -125,6 +125,97 @@ advanced:
 
 ---
 
+## 字幕样式
+
+SubGen 支持自定义 ASS 格式字幕样式。通过 `config.yaml` 中的 `styles` 配置块、CLI 选项或两者结合来配置。
+
+### 配置方式
+
+```yaml
+styles:
+  # 基于预设：default | netflix | fansub | minimal
+  preset: "default"
+
+  # 覆盖主字幕（译文）样式
+  primary:
+    font: "Noto Sans CJK SC"
+    size: 60
+    color: "#FFFFFF"
+    bold: false
+    outline: 3
+    outline_color: "#000000"
+
+  # 覆盖副字幕（原文）样式
+  secondary:
+    font: "Arial"
+    size: 45
+    color: "#AAAAAA"
+    bold: false
+    outline: 2
+```
+
+### 预设继承
+
+可以选择一个预设，然后覆盖特定属性。未指定的属性从预设继承：
+
+```yaml
+styles:
+  preset: "netflix"
+  primary:
+    font: "Noto Sans CJK SC"  # 只覆盖字体，size、color 等沿用 netflix 预设
+```
+
+### 颜色格式
+
+颜色使用标准 `#RRGGBB` 十六进制格式（如 `#FFFFFF` 表示白色，`#00FFFF` 表示青色）。SubGen 会自动将十六进制颜色转换为 ASS 格式（`&HAABBGGRR`）。
+
+也支持 `#AARRGGBB` 格式的 Alpha 通道（如 `#80000000` 表示 50% 透明黑色）。
+
+### 预设详情
+
+#### `default`
+| 属性 | 主字幕 | 副字幕 |
+|------|--------|--------|
+| 字体 | Arial | Arial |
+| 大小 | 60 | 45 |
+| 颜色 | `#FFFFFF` | `#AAAAAA` |
+| 粗体 | 否 | 否 |
+| 描边 | 3.0 | 2.0 |
+| 描边颜色 | `#000000` | `#000000` |
+| 阴影 | 1.0 | 1.0 |
+
+#### `netflix`
+| 属性 | 主字幕 | 副字幕 |
+|------|--------|--------|
+| 字体 | Netflix Sans | Netflix Sans |
+| 大小 | 55 | 40 |
+| 颜色 | `#FFFFFF` | `#CCCCCC` |
+| 粗体 | 否 | 否 |
+| 描边 | 2.0 | 1.5 |
+| 阴影 | 0.0 | 0.0 |
+
+#### `fansub`
+| 属性 | 主字幕 | 副字幕 |
+|------|--------|--------|
+| 字体 | 方正准圆_GBK | Arial |
+| 大小 | 65 | 45 |
+| 颜色 | `#00FFFF` | `#FFFFFF` |
+| 粗体 | 是 | 否 |
+| 描边 | 3.0 | 2.0 |
+| 阴影 | 1.5 | 1.0 |
+
+#### `minimal`
+| 属性 | 主字幕 | 副字幕 |
+|------|--------|--------|
+| 字体 | Helvetica | Helvetica |
+| 大小 | 50 | 38 |
+| 颜色 | `#FFFFFF` | `#BBBBBB` |
+| 粗体 | 否 | 否 |
+| 描边 | 1.0 | 0.5 |
+| 阴影 | 0.0 | 0.0 |
+
+---
+
 ## 环境变量
 
 API Keys 也可以通过环境变量设置（优先级低于配置文件）：

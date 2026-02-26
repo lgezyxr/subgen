@@ -17,6 +17,8 @@
 - 📝 **AI 校对**：全剧情上下文审校，确保一致性和准确性
 - 🔒 **OAuth 登录**：直接用 ChatGPT Plus 或 GitHub Copilot 订阅（无需 API Key！）
 - 💾 **智能缓存**：转写结果缓存，重复运行秒出
+- 🎨 **样式预设**：内置样式（default/netflix/fansub/minimal），支持完全自定义
+- 📁 **项目文件**：保存/加载 `.subgen` 项目文件，支持迭代工作流
 - 💰 **费用透明**：用自己的 API Key，花多少一目了然
 
 ## 🚀 快速开始
@@ -77,12 +79,30 @@ python subgen.py run <视频> [选项]
 | `--whisper-provider` | local / mlx / openai / groq |
 | `--llm-provider` | openai / claude / deepseek / ollama / chatgpt / copilot |
 
+#### 样式选项
+
+| 选项 | 说明 |
+|------|------|
+| `--style-preset` | 样式预设：default / netflix / fansub / minimal |
+| `--primary-font` | 覆盖主字幕字体 |
+| `--primary-color` | 覆盖主字幕颜色（hex 格式，如 `#FFFFFF`） |
+| `--secondary-font` | 覆盖副字幕字体 |
+| `--secondary-color` | 覆盖副字幕颜色（hex 格式，如 `#AAAAAA`） |
+
+#### 项目选项
+
+| 选项 | 说明 |
+|------|------|
+| `--save-project PATH` | 处理后保存 `.subgen` 项目文件 |
+| `--load-project PATH` | 从 `.subgen` 项目文件加载（跳过转写/翻译） |
+
 #### 其他选项
 
 | 选项 | 说明 |
 |------|------|
 | `-o, --output` | 输出文件路径 |
 | `--force-transcribe` | 忽略缓存，强制重新转写 |
+| `--embed` | 烧录字幕到视频 |
 | `--debug` | 显示详细调试日志 |
 | `--config` | 使用自定义配置文件 |
 
@@ -209,6 +229,55 @@ done
 # 显示详细日志用于排查问题
 python subgen.py run video.mp4 -s --to zh --debug
 ```
+
+## 🎨 样式预设
+
+SubGen 内置多种 ASS 字幕渲染样式预设，使用 `--style-preset` 选择：
+
+```bash
+# 使用 Netflix 风格字幕
+python subgen.py run movie.mp4 --to zh --style-preset netflix
+
+# 字幕组风格 + 自定义主字幕颜色
+python subgen.py run movie.mp4 --to zh --style-preset fansub --primary-color "#00FF00"
+```
+
+### 可用预设
+
+| 预设 | 主字体 | 主颜色 | 副颜色 | 说明 |
+|------|--------|--------|--------|------|
+| `default` | Arial | `#FFFFFF` | `#AAAAAA` | 简洁通用样式 |
+| `netflix` | Netflix Sans | `#FFFFFF` | `#CCCCCC` | Netflix 风格，轻描边 |
+| `fansub` | 方正准圆_GBK | `#00FFFF` | `#FFFFFF` | 字幕组风格，青色主字幕 |
+| `minimal` | Helvetica | `#FFFFFF` | `#BBBBBB` | 极简风格，细描边 |
+
+可以在任意预设基础上覆盖单项属性：
+
+```bash
+python subgen.py run movie.mp4 --to zh \
+  --style-preset netflix \
+  --primary-font "Noto Sans CJK SC" \
+  --secondary-color "#DDDDDD"
+```
+
+样式也可以在 `config.yaml` 中配置，详见 [配置说明](docs/configuration.md)。
+
+## 📁 项目文件
+
+SubGen 支持保存和加载 `.subgen` 项目文件，以 JSON 格式存储所有片段、样式、元数据和处理状态。
+
+```bash
+# 生成字幕并保存项目
+python subgen.py run movie.mp4 --to zh --save-project movie.subgen
+
+# 之后：加载项目并重新导出（例如使用不同样式）
+python subgen.py run movie.mp4 --load-project movie.subgen --style-preset fansub -o movie_fansub.ass
+```
+
+项目文件的用途：
+- **迭代工作流**：转写一次，反复调整样式和设置
+- **状态保存**：无需重新处理即可恢复或重新导出
+- **协作共享**：与他人分享转写/翻译成果
 
 ## 📖 文档
 

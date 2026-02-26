@@ -2,6 +2,41 @@
 
 感谢你对 SubGen 的兴趣！欢迎贡献代码、文档、Bug 报告或功能建议。
 
+## 🏗️ 项目架构
+
+SubGen v0.2 采用分层架构：
+
+```
+CLI (subgen.py)
+ └── SubGenEngine (src/engine.py)      # 核心编排引擎
+      ├── transcribe (src/transcribe.py)  # 语音识别
+      ├── translate (src/translate.py)    # 翻译
+      ├── subtitle (src/subtitle.py)      # 字幕渲染 (SRT/ASS/VTT)
+      └── styles (src/styles.py)          # 样式系统
+```
+
+### 核心组件
+
+- **SubGenEngine** (`src/engine.py`): 核心引擎，编排 audio extraction → transcription → translation → proofreading → export。不做任何终端 I/O，通过回调报告进度。
+- **StyleProfile** (`src/styles.py`): 字幕样式数据模型，包含 `FontStyle`（字体/颜色/描边等）和布局参数。内置预设：`default`、`netflix`、`fansub`、`minimal`。
+- **SubtitleProject** (`src/project.py`): 项目数据模型，包含 segments、style、metadata、state。支持序列化为 `.subgen` JSON 文件。
+- **CLI** (`subgen.py`): 薄壳层，负责解析参数、构建配置、调用 Engine、显示进度。
+
+### 添加新的样式预设
+
+1. 打开 `src/styles.py`
+2. 在 `PRESETS` 字典中添加新预设：
+   ```python
+   PRESETS["my_preset"] = StyleProfile(
+       name="my_preset",
+       primary=FontStyle(font="My Font", size=55, color="#FFFFFF", ...),
+       secondary=FontStyle(font="My Font", size=40, color="#CCCCCC", ...),
+       margin_bottom=30,
+   )
+   ```
+3. 在 `subgen.py` 的 `--style-preset` 的 `click.Choice` 中添加新预设名称
+4. 更新文档
+
 ## 🐛 报告 Bug
 
 1. 先搜索 [Issues](https://github.com/YOUR_USERNAME/subgen/issues) 看看是否已有类似问题
