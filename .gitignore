@@ -75,6 +75,13 @@ temp/
 *.ass
 *.vtt
 
+# Benchmark test fixtures (un-ignore .ass/.srt used by tests)
+!benchmark/tests/fixtures/*.ass
+!benchmark/tests/fixtures/*.srt
+
+# Benchmark results
+benchmark/results/
+
 # macOS
 .DS_Store
 
