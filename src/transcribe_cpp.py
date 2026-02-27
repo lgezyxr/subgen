@@ -1,6 +1,7 @@
 """whisper.cpp backend — calls whisper-cpp binary via subprocess."""
 
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -49,15 +50,19 @@ def transcribe_cpp(
             f"Run: subgen install model {model_name}"
         )
 
-    # Build command
+    # Build command — output JSON to a temp file
+    import tempfile
+    output_base = tempfile.mktemp(prefix="subgen_whisper_")
+
     threads = whisper_cfg.get("cpp_threads", 4)
     cmd = [
         str(engine_path),
         "-m", str(model_path),
         "-f", str(audio_path),
-        "--output-json",
+        "--output-json-full",
         "--print-progress",
         "-t", str(threads),
+        "-of", output_base,
     ]
 
     source_lang = whisper_cfg.get("source_language")
@@ -94,7 +99,27 @@ def transcribe_cpp(
             + "".join(stderr_lines[-10:])
         )
 
-    return _parse_whisper_json(stdout)
+    # Read JSON output file
+    json_file = output_base + ".json"
+    try:
+        with open(json_file, "r", encoding="utf-8") as f:
+            json_str = f.read()
+    except FileNotFoundError:
+        raise RuntimeError(
+            f"whisper.cpp did not produce JSON output.\n"
+            f"Expected: {json_file}\n"
+            f"stdout: {stdout[:500]}"
+        )
+    finally:
+        # Cleanup temp files
+        import glob
+        for f in glob.glob(output_base + ".*"):
+            try:
+                os.remove(f)
+            except OSError:
+                pass
+
+    return _parse_whisper_json(json_str)
 
 
 def _parse_whisper_json(json_str: str) -> List[Segment]:
