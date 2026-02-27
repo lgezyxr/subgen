@@ -1,5 +1,6 @@
 """Style system for subtitle rendering."""
 
+import re
 from dataclasses import dataclass, field, asdict
 from typing import Dict, Any, Optional
 
@@ -14,6 +15,8 @@ def hex_to_ass_color(hex_color: str) -> str:
         ASS color string '&HAABBGGRR'
     """
     h = hex_color.lstrip('#')
+    if not re.fullmatch(r"[0-9a-fA-F]{6}|[0-9a-fA-F]{8}", h):
+        raise ValueError(f"Invalid hex color: {hex_color}")
     if len(h) == 6:
         r, g, b = h[0:2], h[2:4], h[4:6]
         return f"&H00{b.upper()}{g.upper()}{r.upper()}"
@@ -163,7 +166,7 @@ def load_style(config: Dict[str, Any]) -> StyleProfile:
         StyleProfile instance.
     """
     styles_cfg = config.get("styles", {})
-    if not styles_cfg:
+    if not isinstance(styles_cfg, dict) or not styles_cfg:
         return StyleProfile()  # default
 
     preset_name = styles_cfg.get("preset", "default")

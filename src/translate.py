@@ -116,6 +116,31 @@ Travel Secure公司总裁马蒂·法尔斯通 | end: 11
 """
 
 
+def _translation_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Get translation config block safely."""
+    translation_cfg = config.get('translation', {})
+    return translation_cfg if isinstance(translation_cfg, dict) else {}
+
+
+def _get_provider_api_key_and_model(
+    config: Dict[str, Any],
+    provider: str,
+    default_model: str
+) -> tuple[str, str]:
+    """Resolve provider key/model with shared fallback."""
+    translation_cfg = _translation_config(config)
+    api_key = (
+        translation_cfg.get(f'{provider}_api_key')
+        or translation_cfg.get('api_key', '')
+    )
+    model = (
+        translation_cfg.get(f'{provider}_model')
+        or translation_cfg.get('model')
+        or default_model
+    )
+    return api_key, model
+
+
 def _get_rules_dir() -> Path:
     """Get translation rules directory"""
     # Search for rules/ directory in multiple locations
@@ -218,7 +243,7 @@ def translate_segments(
     if not segments:
         return []
 
-    provider = config.get('translation', {}).get('provider', 'openai')
+    provider = _translation_config(config).get('provider', 'openai')
     source_lang = config.get('output', {}).get('source_language', 'auto')
     target_lang = config.get('output', {}).get('target_language', 'zh')
     max_chars = config.get('output', {}).get('max_chars_per_line', 40)
@@ -246,6 +271,7 @@ def translate_segments(
 
     # Translate in batches
     translated_segments = []
+    processed_count = 0
     for i in range(0, len(segments), batch_size):
         batch = segments[i:i + batch_size]
         batch_texts = [seg.text for seg in batch]
@@ -255,8 +281,9 @@ def translate_segments(
             for seg in batch:
                 seg.translated = ""
                 translated_segments.append(seg)
+            processed_count += len(batch)
             if progress_callback:
-                progress_callback(len(batch))
+                progress_callback(processed_count)
             continue
 
         # Call translation
@@ -291,8 +318,9 @@ def translate_segments(
             translated_segments.append(seg)
 
         # Update progress
+        processed_count += len(batch)
         if progress_callback:
-            progress_callback(len(batch))
+            progress_callback(processed_count)
 
     return translated_segments
 
@@ -395,7 +423,7 @@ def translate_segments_sentence_aware(
 
     # Get translate function if not provided
     if translate_fn is None:
-        provider = config.get('translation', {}).get('provider', 'openai')
+        provider = _translation_config(config).get('provider', 'openai')
         debug("sentence_aware: using provider=%s", provider)
         if provider == 'openai':
             translate_fn = _translate_openai
@@ -421,6 +449,7 @@ def translate_segments_sentence_aware(
     debug("sentence_aware: %d groups from %d segments", len(groups), len(segments))
 
     translated_segments = []
+    processed_count = 0
 
     for i, group in enumerate(groups):
         debug("sentence_aware: processing group %d/%d with %d segments", i+1, len(groups), len(group))
@@ -491,8 +520,9 @@ def translate_segments_sentence_aware(
                         seg.translated = seg.text
                         translated_segments.append(seg)
 
+        processed_count += len(group)
         if progress_callback:
-            progress_callback(len(group))
+            progress_callback(processed_count)
 
     return translated_segments
 
@@ -603,6 +633,19 @@ def _translate_with_word_alignment(
             translated=merged_translation
         )]
 
+    # Preserve any trailing words not covered by parsed "end: N" markers.
+    if prev_end_idx < len(all_words) - 1:
+        start_idx = prev_end_idx + 1
+        trailing_text = " ".join(w.text for w in all_words[start_idx:])
+        debug("word_alignment: appending trailing words from idx %d to %d",
+              start_idx, len(all_words) - 1)
+        new_segments.append(Segment(
+            start=all_words[start_idx].start,
+            end=all_words[-1].end,
+            text=trailing_text,
+            translated=trailing_text
+        ))
+
     debug("word_alignment: returning %d segments", len(new_segments))
     return new_segments
 
@@ -614,7 +657,7 @@ def _translate_sentence_group(prompt: str, expected_parts: int, config: Dict[str
     import requests
     from .logger import debug
 
-    provider = config.get('translation', {}).get('provider', 'openai')
+    provider = _translation_config(config).get('provider', 'openai')
     debug("_translate_sentence_group: provider=%s, expected_parts=%d", provider, expected_parts)
 
     if provider == 'openai':
@@ -875,9 +918,10 @@ def _translate_openai(
     from openai import OpenAI
     import os
 
-    api_key = config['translation'].get('api_key', '') or os.environ.get('OPENAI_API_KEY', '')
-    base_url = config['translation'].get('base_url', None)
-    model = config['translation'].get('model', 'gpt-4o-mini')
+    translation_cfg = _translation_config(config)
+    api_key = translation_cfg.get('api_key', '') or os.environ.get('OPENAI_API_KEY', '')
+    base_url = translation_cfg.get('base_url', None)
+    model = translation_cfg.get('model', 'gpt-4o-mini')
 
     if not api_key:
         raise ValueError("OpenAI API Key not configured")
@@ -920,8 +964,9 @@ def _translate_claude(
     import anthropic
     import os
 
-    api_key = config['translation'].get('api_key', '') or os.environ.get('ANTHROPIC_API_KEY', '')
-    model = config['translation'].get('model', 'claude-3-haiku-20240307')
+    translation_cfg = _translation_config(config)
+    api_key = translation_cfg.get('api_key', '') or os.environ.get('ANTHROPIC_API_KEY', '')
+    model = translation_cfg.get('model', 'claude-3-haiku-20240307')
 
     if not api_key:
         raise ValueError("Anthropic API Key not configured")
@@ -964,8 +1009,9 @@ def _translate_deepseek(
     from openai import OpenAI
     import os
 
-    api_key = config['translation'].get('api_key', '') or os.environ.get('DEEPSEEK_API_KEY', '')
-    model = config['translation'].get('model', 'deepseek-chat')
+    translation_cfg = _translation_config(config)
+    api_key = translation_cfg.get('api_key', '') or os.environ.get('DEEPSEEK_API_KEY', '')
+    model = translation_cfg.get('model', 'deepseek-chat')
 
     if not api_key:
         raise ValueError("DeepSeek API Key not configured")
@@ -1010,8 +1056,9 @@ def _translate_ollama(
     """Translate using local Ollama"""
     import httpx
 
-    host = config['translation'].get('ollama_host', 'http://localhost:11434')
-    model = config['translation'].get('ollama_model', 'qwen2.5:14b')
+    translation_cfg = _translation_config(config)
+    host = translation_cfg.get('ollama_host', 'http://localhost:11434')
+    model = translation_cfg.get('ollama_model', 'qwen2.5:14b')
 
     system_prompt = _build_system_prompt(
         _get_lang_name(source_lang),
@@ -1339,18 +1386,19 @@ MODEL_SETTINGS = {
 
 def _get_model_settings(config: Dict[str, Any]) -> Dict[str, int]:
     """Get model-specific batch_size and context_chars for proofreading."""
-    provider = config.get('translation', {}).get('provider', 'openai')
+    provider = _translation_config(config).get('provider', 'openai')
 
     # Try to get model name from config
     model = None
+    translation_cfg = _translation_config(config)
     if provider == 'openai':
-        model = config.get('translation', {}).get('openai_model', 'gpt-4o')
+        model = translation_cfg.get('openai_model') or translation_cfg.get('model', 'gpt-4o')
     elif provider == 'claude':
-        model = config.get('translation', {}).get('claude_model', 'claude-sonnet-4')
+        model = translation_cfg.get('claude_model') or translation_cfg.get('model', 'claude-sonnet-4')
     elif provider == 'deepseek':
-        model = config.get('translation', {}).get('deepseek_model', 'deepseek-chat')
+        model = translation_cfg.get('deepseek_model') or translation_cfg.get('model', 'deepseek-chat')
     elif provider == 'chatgpt':
-        model = config.get('translation', {}).get('model', 'gpt-5.3-codex')
+        model = translation_cfg.get('model', 'gpt-5.3-codex')
     elif provider == 'ollama':
         model = 'ollama'  # Use conservative defaults for all Ollama models
     elif provider == 'copilot':
@@ -1423,7 +1471,7 @@ def proofread_translations(
           len(segments), len(story_context), batch_size)
 
     # Check provider is supported
-    provider = config.get('translation', {}).get('provider', 'openai')
+    provider = _translation_config(config).get('provider', 'openai')
     debug("proofread: provider=%s", provider)
 
     supported_providers = ['openai', 'claude', 'deepseek', 'chatgpt']
@@ -1439,6 +1487,7 @@ def proofread_translations(
 
     # Process in batches
     proofread_segments = []
+    processed_count = 0
 
     for i in range(0, len(segments), batch_size):
         batch = segments[i:i + batch_size]
@@ -1509,8 +1558,9 @@ def proofread_translations(
 
         proofread_segments.extend(batch)
 
+        processed_count += len(batch)
         if progress_callback:
-            progress_callback(len(batch))
+            progress_callback(processed_count)
 
     return proofread_segments
 
@@ -1524,7 +1574,7 @@ def _call_llm_for_proofread(
     import requests
     from .logger import debug
 
-    provider = config.get('translation', {}).get('provider', 'openai')
+    provider = _translation_config(config).get('provider', 'openai')
     debug("_call_llm_for_proofread: provider=%s", provider)
 
     if provider == 'chatgpt':
@@ -1538,7 +1588,7 @@ def _call_llm_for_proofread(
             openai_codex_login()
             access_token, account_id = get_openai_codex_token()
 
-        model = config.get('translation', {}).get('model', 'gpt-5.3-codex')
+        model = _translation_config(config).get('model', 'gpt-5.3-codex')
         debug("_call_llm_for_proofread: chatgpt model=%s", model)
 
         response = requests.post(
@@ -1600,11 +1650,9 @@ def _call_llm_for_proofread(
         return result_text
 
     elif provider == 'openai':
-        api_key = config.get('translation', {}).get('openai_api_key', '')
+        api_key, model = _get_provider_api_key_and_model(config, 'openai', 'gpt-4o')
         if not api_key:
             raise ValueError("OpenAI API key not configured")
-
-        model = config.get('translation', {}).get('openai_model', 'gpt-4o')
 
         response = requests.post(
             "https://api.openai.com/v1/chat/completions",
@@ -1629,11 +1677,9 @@ def _call_llm_for_proofread(
         return response.json()['choices'][0]['message']['content']
 
     elif provider == 'claude':
-        api_key = config.get('translation', {}).get('claude_api_key', '')
+        api_key, model = _get_provider_api_key_and_model(config, 'claude', 'claude-sonnet-4-20250514')
         if not api_key:
             raise ValueError("Claude API key not configured")
-
-        model = config.get('translation', {}).get('claude_model', 'claude-sonnet-4-20250514')
 
         response = requests.post(
             "https://api.anthropic.com/v1/messages",
@@ -1657,11 +1703,9 @@ def _call_llm_for_proofread(
         return response.json()['content'][0]['text']
 
     elif provider == 'deepseek':
-        api_key = config.get('translation', {}).get('deepseek_api_key', '')
+        api_key, model = _get_provider_api_key_and_model(config, 'deepseek', 'deepseek-chat')
         if not api_key:
             raise ValueError("DeepSeek API key not configured")
-
-        model = config.get('translation', {}).get('deepseek_model', 'deepseek-chat')
 
         response = requests.post(
             "https://api.deepseek.com/v1/chat/completions",

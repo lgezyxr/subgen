@@ -38,7 +38,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 def load_config(config_path: str = None) -> Dict[str, Any]:
     """Load configuration file.
 
-    Search order: config_path arg → ./config.yaml → ~/.subgen/config.yaml
+    Search order: config_path arg → ./config.yaml/.yml → ~/.subgen/config.yaml/.yml
 
     Args:
         config_path: Explicit config file path. If None, searches default locations.
@@ -57,7 +57,9 @@ def load_config(config_path: str = None) -> Dict[str, Any]:
         # Search default locations
         candidates = [
             Path("config.yaml"),
+            Path("config.yml"),
             get_subgen_dir() / "config.yaml",
+            get_subgen_dir() / "config.yml",
         ]
         path = None
         for candidate in candidates:
@@ -65,7 +67,10 @@ def load_config(config_path: str = None) -> Dict[str, Any]:
                 path = candidate
                 break
         if path is None:
-            raise FileNotFoundError("Config file not found in ./config.yaml or ~/.subgen/config.yaml")
+            raise FileNotFoundError(
+                "Config file not found in ./config.yaml, ./config.yml, "
+                "~/.subgen/config.yaml, or ~/.subgen/config.yml"
+            )
 
     with open(path, 'r', encoding='utf-8') as f:
         config = yaml.safe_load(f) or {}

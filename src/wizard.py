@@ -199,7 +199,7 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
 
     config = {
         "whisper": {},
-        "llm": {},
+        "translation": {},
         "output": {
             "format": "srt",
             "target_language": "zh",
@@ -315,8 +315,9 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
             if response != 'y':
                 sys.exit(1)
 
-        # Choose model based on VRAM (local model names, not cloud API names)
-        if hw.has_nvidia_gpu and hw.nvidia_vram_gb:
+        # Choose model/device based on actual GPU/CUDA availability.
+        can_use_cuda = hw.has_nvidia_gpu and hw.has_cuda
+        if can_use_cuda and hw.nvidia_vram_gb:
             if hw.nvidia_vram_gb >= 8:
                 model = "large-v3"
             elif hw.nvidia_vram_gb >= 5:
@@ -325,12 +326,20 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
                 model = "small"
             else:
                 model = "base"
+        elif can_use_cuda:
+            model = "medium"
         else:
-            model = "large-v3"
+            model = "small"
+
+        device = "cuda" if can_use_cuda else "cpu"
         config["whisper"]["local_model"] = model
-        config["whisper"]["device"] = "cuda"
-        print(f"  ℹ️  Using {model} model with CUDA.")
-        print("  ℹ️  Model will download automatically on first run (~3GB for large-v3)")
+        config["whisper"]["device"] = device
+        if device == "cuda":
+            print(f"  ℹ️  Using {model} model with CUDA.")
+            print("  ℹ️  Model will download automatically on first run (~3GB for large-v3)")
+        else:
+            print(f"  ℹ️  No NVIDIA CUDA GPU detected, using {model} model on CPU.")
+            print("  ℹ️  You can switch to a larger model later in config.yaml if performance allows.")
 
     if whisper_provider == "mlx":
         # Check if mlx-whisper is installed
@@ -358,7 +367,7 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
     llm_provider = llm_keys[llm_choice - 1]
     llm_info = LLM_PROVIDERS[llm_provider]
 
-    config["llm"]["provider"] = llm_provider
+    config["translation"]["provider"] = llm_provider
     print(f"\n  ✅ Selected: {llm_info['name']}")
 
     if llm_info.get("requires_oauth"):
@@ -383,22 +392,22 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
                     print("  Falling back to manual setup. Run 'subgen auth login chatgpt' later.")
     elif llm_info.get("requires_key"):
         key = get_api_key(llm_info)
-        config["llm"]["api_key"] = key
+        config["translation"]["api_key"] = key
 
     if llm_provider == "ollama":
-        config["llm"]["ollama_host"] = "http://localhost:11434"
-        config["llm"]["ollama_model"] = "qwen2.5:14b"
+        config["translation"]["ollama_host"] = "http://localhost:11434"
+        config["translation"]["ollama_model"] = "qwen2.5:14b"
         print("  ℹ️  Make sure Ollama is running. Edit config.yaml to change model.")
     elif llm_provider == "openai":
-        config["llm"]["model"] = "gpt-4o-mini"
+        config["translation"]["model"] = "gpt-4o-mini"
     elif llm_provider == "deepseek":
-        config["llm"]["model"] = "deepseek-chat"
+        config["translation"]["model"] = "deepseek-chat"
     elif llm_provider == "claude":
-        config["llm"]["model"] = "claude-3-haiku-20240307"
+        config["translation"]["model"] = "claude-3-haiku-20240307"
     elif llm_provider == "chatgpt":
-        config["llm"]["model"] = "gpt-5.1-codex-mini"  # Codex API requires gpt-5.x-codex models
+        config["translation"]["model"] = "gpt-5.1-codex-mini"  # Codex API requires gpt-5.x-codex models
     elif llm_provider == "copilot":
-        config["llm"]["model"] = "gpt-4o-mini"
+        config["translation"]["model"] = "gpt-4o-mini"
 
     # Step 3: FFmpeg check
     print("\n" + "-" * 50)
@@ -481,6 +490,7 @@ def check_config_exists(config_path: Path = None) -> bool:
         Path("config.yaml"),
         Path("config.yml"),
         Path.home() / ".subgen" / "config.yaml",
+        Path.home() / ".subgen" / "config.yml",
     ]
 
     return any(p.exists() for p in locations)

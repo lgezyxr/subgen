@@ -4,9 +4,12 @@ from src.subtitle import (
     _format_time_srt,
     _format_time_vtt,
     _format_time_ass,
+    _generate_ass,
     _escape_ass_text,
     _escape_ffmpeg_filter_path,
+    generate_subtitle,
 )
+from src.transcribe import Segment
 
 
 class TestTimeFormatting:
@@ -140,3 +143,38 @@ Hello
         assert len(segments) == 1
         assert segments[0].text == "Hello"
         assert segments[0].translated == "你好"
+
+    def test_bilingual_round_trip_order(self, tmp_path):
+        """Generated bilingual SRT should load back as original first, translated second."""
+        segs = [Segment(start=0.0, end=1.0, text="Hello", translated="你好")]
+        srt_file = tmp_path / "bilingual.srt"
+        generate_subtitle(segs, srt_file, {"output": {"format": "srt", "bilingual": True}})
+
+        from src.subtitle import load_srt
+        loaded = load_srt(srt_file, bilingual=True)
+        assert len(loaded) == 1
+        assert loaded[0].text == "Hello"
+        assert loaded[0].translated == "你好"
+
+    def test_srt_without_numeric_index(self, tmp_path):
+        """Parser should accept SRT blocks where timestamp is first line."""
+        srt_content = """00:00:01,000 --> 00:00:02,000
+Hello
+
+00:00:03,000 --> 00:00:04,000
+World
+"""
+        srt_file = tmp_path / "no-index.srt"
+        srt_file.write_text(srt_content, encoding="utf-8")
+
+        from src.subtitle import load_srt
+        segments = load_srt(srt_file)
+        assert len(segments) == 2
+        assert segments[0].text == "Hello"
+        assert segments[1].text == "World"
+
+
+class TestAssSignature:
+    def test_generate_ass_signature_has_no_unused_config_param(self):
+        import inspect
+        assert "config" not in inspect.signature(_generate_ass).parameters

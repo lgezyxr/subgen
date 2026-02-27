@@ -1,5 +1,7 @@
 """Tests for src/styles.py"""
 
+import pytest
+
 from src.styles import hex_to_ass_color, FontStyle, StyleProfile, PRESETS, load_style
 
 
@@ -18,6 +20,10 @@ class TestHexToAssColor:
 
     def test_aarrggbb_semi_transparent_red(self):
         assert hex_to_ass_color("#80FF0000") == "&H800000FF"
+
+    def test_invalid_hex_characters(self):
+        with pytest.raises(ValueError):
+            hex_to_ass_color("#GGGGGG")
 
 
 class TestFontStyleSerialization:
@@ -82,3 +88,7 @@ class TestLoadStyle:
     def test_unknown_preset_falls_back(self):
         sp = load_style({"styles": {"preset": "nonexistent"}})
         assert sp.primary.font == "Arial"  # default
+
+    def test_non_dict_styles_falls_back(self):
+        sp = load_style({"styles": ["not", "a", "dict"]})
+        assert sp.name == "default"
