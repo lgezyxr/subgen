@@ -162,6 +162,67 @@ BUILTIN_REGISTRY: Dict[str, Any] = {
 CACHE_MAX_AGE_SECONDS = 24 * 3600  # 24 hours
 
 
+def _safe_extractall_zip(zf: zipfile.ZipFile, dest: Path) -> None:
+    """Safely extract all members of a zip archive, preventing zip-slip attacks.
+
+    Validates that every extracted file resolves to a path within the
+    destination directory. Rejects any entry that would escape via '..'
+    traversal or absolute paths.
+
+    Args:
+        zf: An open ZipFile object.
+        dest: Target directory for extraction.
+
+    Raises:
+        ValueError: If any archive member would extract outside dest.
+    """
+    dest_resolved = dest.resolve()
+    for member_name in zf.namelist():
+        member_path = (dest / member_name).resolve()
+        # Ensure the resolved path is within or equal to the destination
+        if not (member_path == dest_resolved or str(member_path).startswith(str(dest_resolved) + os.sep)):
+            raise ValueError(
+                f"Zip archive contains path traversal entry: {member_name!r}. "
+                f"Extraction aborted for security."
+            )
+    zf.extractall(dest)
+
+
+def _safe_extractall_tar(tf: tarfile.TarFile, dest: Path) -> None:
+    """Safely extract all members of a tar archive, preventing tar-slip attacks.
+
+    Validates that every extracted file resolves to a path within the
+    destination directory. Rejects any entry that would escape via '..'
+    traversal, absolute paths, or symlink tricks.
+
+    Args:
+        tf: An open TarFile object.
+        dest: Target directory for extraction.
+
+    Raises:
+        ValueError: If any archive member would extract outside dest.
+    """
+    dest_resolved = dest.resolve()
+    for member in tf.getmembers():
+        member_path = (dest / member.name).resolve()
+        # Ensure the resolved path is within or equal to the destination
+        if not (member_path == dest_resolved or str(member_path).startswith(str(dest_resolved) + os.sep)):
+            raise ValueError(
+                f"Tar archive contains path traversal entry: {member.name!r}. "
+                f"Extraction aborted for security."
+            )
+        # Also reject absolute paths and symlinks pointing outside
+        if member.issym() or member.islnk():
+            link_target = (dest / member.linkname).resolve()
+            if not (link_target == dest_resolved or str(link_target).startswith(str(dest_resolved) + os.sep)):
+                raise ValueError(
+                    f"Tar archive contains symlink escaping target directory: "
+                    f"{member.name!r} -> {member.linkname!r}. "
+                    f"Extraction aborted for security."
+                )
+    tf.extractall(dest)
+
+
 class ComponentManager:
     """Manage downloading, installing, updating, and removing components."""
 
@@ -351,17 +412,17 @@ class ComponentManager:
             tmp_file = self.base_dir / "tmp_download"
             try:
                 self._download(url, tmp_file, on_progress=on_progress, sha256=expected_sha)
-                # Extract
+                # Extract safely (validate paths to prevent zip-slip)
                 install_path.mkdir(parents=True, exist_ok=True)
                 if url.endswith(".zip"):
                     with zipfile.ZipFile(tmp_file) as zf:
-                        zf.extractall(install_path)
+                        _safe_extractall_zip(zf, install_path)
                 elif url.endswith((".tar.gz", ".tgz")):
                     with tarfile.open(tmp_file, "r:gz") as tf:
-                        tf.extractall(install_path)
+                        _safe_extractall_tar(tf, install_path)
                 elif url.endswith(".tar.xz"):
                     with tarfile.open(tmp_file, "r:xz") as tf:
-                        tf.extractall(install_path)
+                        _safe_extractall_tar(tf, install_path)
 
                 # Make executables executable
                 executable = comp_info.get("executable", "")
@@ -493,17 +554,32 @@ class ComponentManager:
     def _download(self, url: str, dest: Path,
                   on_progress: Optional[Callable[[int, int], None]] = None,
                   sha256: str = "") -> Path:
-        """Download a file with progress and optional SHA256 verification.
+        """Download a file with progress and SHA256 verification.
 
         Args:
             url: Download URL.
             dest: Destination path.
             on_progress: Callback(downloaded_bytes, total_bytes).
-            sha256: Expected SHA256 hash (skip if empty).
+            sha256: Expected SHA256 hash. If empty, raises an error
+                    indicating integrity verification is not available.
 
         Returns:
             Path to downloaded file.
+
+        Raises:
+            RuntimeError: If hash is empty (integrity cannot be verified)
+                          or if hash does not match.
         """
+        # SECURITY: Reject downloads with empty/missing SHA256 hash.
+        # All components in the registry MUST have valid SHA256 hashes
+        # to prevent MITM substitution of arbitrary binaries.
+        if not sha256:
+            raise RuntimeError(
+                f"Integrity verification not available for this component — "
+                f"please verify manually or update the registry with a valid "
+                f"SHA256 hash. URL: {url}"
+            )
+
         import httpx
 
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -513,27 +589,25 @@ class ComponentManager:
             total = int(response.headers.get("content-length", 0))
             downloaded = 0
 
-            hasher = hashlib.sha256() if sha256 else None
+            hasher = hashlib.sha256()
 
             with open(dest, "wb") as f:
                 for chunk in response.iter_bytes(chunk_size=65536):
                     f.write(chunk)
                     downloaded += len(chunk)
-                    if hasher:
-                        hasher.update(chunk)
+                    hasher.update(chunk)
                     if on_progress:
                         on_progress(downloaded, total)
 
         # Verify checksum
-        if sha256 and hasher:
-            actual = hasher.hexdigest()
-            if actual != sha256:
-                dest.unlink(missing_ok=True)
-                raise RuntimeError(
-                    f"SHA256 mismatch for {url}:\n"
-                    f"  expected: {sha256}\n"
-                    f"  got:      {actual}"
-                )
+        actual = hasher.hexdigest()
+        if actual != sha256:
+            dest.unlink(missing_ok=True)
+            raise RuntimeError(
+                f"SHA256 mismatch for {url}:\n"
+                f"  expected: {sha256}\n"
+                f"  got:      {actual}"
+            )
 
         return dest
 

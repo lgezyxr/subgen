@@ -201,13 +201,21 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"
 
 def _escape_ffmpeg_filter_path(path: str) -> str:
     r"""
-    Escape path for FFmpeg filter
-    FFmpeg filter requires escaping: \ ' : [ ]
+    Escape path for FFmpeg filter graph strings.
+
+    FFmpeg filter syntax treats these characters specially:
+    \ ' : ; , = @ [ ]
+    All must be escaped with a backslash to be treated as literal
+    characters in filter path arguments.
+
+    Backslashes are converted to forward slashes first (Windows compat),
+    then all remaining special characters are escaped.
     """
-    # Convert backslash to forward slash first
+    # Convert backslash to forward slash first (Windows path compat)
     path = path.replace('\\', '/')
-    # Escape FFmpeg filter special characters
-    for char in ["'", ":", "[", "]"]:
+    # Escape ALL FFmpeg filter special characters
+    # Order matters: don't double-escape the backslash we just removed
+    for char in ["'", ":", ";", ",", "=", "@", "[", "]"]:
         path = path.replace(char, '\\' + char)
     return path
 

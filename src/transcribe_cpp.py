@@ -50,76 +50,74 @@ def transcribe_cpp(
             f"Run: subgen install model {model_name}"
         )
 
-    # Build command — output JSON to a temp file
+    # Build command — output JSON to a secure temp directory
     import tempfile
-    output_base = tempfile.mktemp(prefix="subgen_whisper_")
-
-    threads = whisper_cfg.get("cpp_threads", 4)
-    cmd = [
-        str(engine_path),
-        "-m", str(model_path),
-        "-f", str(audio_path),
-        "--output-json-full",
-        "--print-progress",
-        "-t", str(threads),
-        "-of", output_base,
-    ]
-
-    source_lang = whisper_cfg.get("source_language")
-    if source_lang and source_lang != "auto":
-        cmd.extend(["-l", source_lang])
-
-    debug("transcribe_cpp: running %s", " ".join(cmd))
-
-    # Execute
-    process = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-
-    # Read stderr for progress
-    stderr_lines: List[str] = []
-    for line in process.stderr:  # type: ignore[union-attr]
-        stderr_lines.append(line)
-        if "progress =" in line and on_progress:
-            try:
-                pct = int(line.split("=")[1].strip().rstrip("%"))
-                on_progress(pct, 100)
-            except (ValueError, IndexError):
-                pass
-
-    stdout = process.stdout.read()  # type: ignore[union-attr]
-    process.wait()
-
-    if process.returncode != 0:
-        raise RuntimeError(
-            f"whisper.cpp failed (exit {process.returncode}):\n"
-            + "".join(stderr_lines[-10:])
-        )
-
-    # Read JSON output file
-    json_file = output_base + ".json"
+    tmp_dir = tempfile.mkdtemp(prefix="subgen_whisper_")
     try:
-        with open(json_file, "r", encoding="utf-8") as f:
-            json_str = f.read()
-    except FileNotFoundError:
-        raise RuntimeError(
-            f"whisper.cpp did not produce JSON output.\n"
-            f"Expected: {json_file}\n"
-            f"stdout: {stdout[:500]}"
-        )
-    finally:
-        # Cleanup temp files
-        import glob
-        for f in glob.glob(output_base + ".*"):
-            try:
-                os.remove(f)
-            except OSError:
-                pass
+        output_base = os.path.join(tmp_dir, "output")
 
-    return _parse_whisper_json(json_str)
+        threads = whisper_cfg.get("cpp_threads", 4)
+        cmd = [
+            str(engine_path),
+            "-m", str(model_path),
+            "-f", str(audio_path),
+            "--output-json-full",
+            "--print-progress",
+            "-t", str(threads),
+            "-of", output_base,
+        ]
+
+        source_lang = whisper_cfg.get("source_language")
+        if source_lang and source_lang != "auto":
+            cmd.extend(["-l", source_lang])
+
+        debug("transcribe_cpp: running %s", " ".join(cmd))
+
+        # Execute
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+        # Read stderr for progress
+        stderr_lines: List[str] = []
+        for line in process.stderr:  # type: ignore[union-attr]
+            stderr_lines.append(line)
+            if "progress =" in line and on_progress:
+                try:
+                    pct = int(line.split("=")[1].strip().rstrip("%"))
+                    on_progress(pct, 100)
+                except (ValueError, IndexError):
+                    pass
+
+        stdout = process.stdout.read()  # type: ignore[union-attr]
+        process.wait()
+
+        if process.returncode != 0:
+            raise RuntimeError(
+                f"whisper.cpp failed (exit {process.returncode}):\n"
+                + "".join(stderr_lines[-10:])
+            )
+
+        # Read JSON output file
+        json_file = output_base + ".json"
+        try:
+            with open(json_file, "r", encoding="utf-8") as f:
+                json_str = f.read()
+        except FileNotFoundError:
+            raise RuntimeError(
+                f"whisper.cpp did not produce JSON output.\n"
+                f"Expected: {json_file}\n"
+                f"stdout: {stdout[:500]}"
+            )
+
+        return _parse_whisper_json(json_str)
+    finally:
+        # Cleanup entire temp directory securely
+        import shutil
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 def _parse_whisper_json(json_str: str) -> List[Segment]:
