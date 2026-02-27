@@ -84,7 +84,37 @@ def load_config(config_path: str = None) -> Dict[str, Any]:
         else:
             result[key] = value
 
+    # Validate that top-level keys are dicts where expected
+    _validate_config(result)
+
     return result
+
+
+def _validate_config(config: Dict[str, Any]) -> None:
+    """Validate basic config schema after merge.
+
+    Ensures top-level keys that are expected to be dicts are actually dicts,
+    preventing cryptic crashes later (e.g. 'whisper: null' in YAML).
+
+    Args:
+        config: Merged configuration dictionary.
+
+    Raises:
+        ValueError: If validation fails.
+    """
+    required_dict_keys = ['whisper', 'translation', 'output', 'advanced']
+    for key in required_dict_keys:
+        value = config.get(key)
+        if value is None:
+            raise ValueError(
+                f"Configuration error: '{key}' is null/missing. "
+                f"Please provide a valid mapping or remove the key to use defaults."
+            )
+        if not isinstance(value, dict):
+            raise ValueError(
+                f"Configuration error: '{key}' must be a mapping/dict, "
+                f"got {type(value).__name__}: {value!r}"
+            )
 
 
 def get_api_key(config: Dict[str, Any], provider: str, key_name: str) -> str:

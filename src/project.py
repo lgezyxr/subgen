@@ -1,6 +1,9 @@
 """Subtitle project management."""
 
 import json
+import os
+import tempfile
+import warnings
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -8,6 +11,11 @@ from typing import Dict, Any, List, Optional
 
 from .transcribe import Segment, Word
 from .styles import StyleProfile
+
+# Current project file format version
+PROJECT_VERSION = "0.2"
+# Versions compatible with the current loader
+COMPATIBLE_VERSIONS = {"0.1", "0.2"}
 
 
 @dataclass
@@ -22,6 +30,7 @@ class ProjectMetadata:
     llm_model: str = ""
     created_at: str = ""
     modified_at: str = ""
+    source_from: str = ""  # 'cache', 'embedded', or 'transcribed'
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to dictionary."""
@@ -34,6 +43,7 @@ class ProjectMetadata:
             "llm_model": self.llm_model,
             "created_at": self.created_at,
             "modified_at": self.modified_at,
+            "source_from": self.source_from,
         }
 
     @classmethod
@@ -111,7 +121,7 @@ class SubtitleProject:
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to dictionary."""
         return {
-            "version": "0.2",
+            "version": PROJECT_VERSION,
             "segments": [_segment_to_dict(s) for s in self.segments],
             "style": self.style.to_dict(),
             "metadata": self.metadata.to_dict(),
@@ -120,7 +130,19 @@ class SubtitleProject:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "SubtitleProject":
-        """Deserialize from dictionary."""
+        """Deserialize from dictionary.
+
+        Warns if the project version is newer than what this loader supports.
+        """
+        file_version = data.get("version", "unknown")
+        if file_version not in COMPATIBLE_VERSIONS:
+            warnings.warn(
+                f"Project file version '{file_version}' may be incompatible "
+                f"with this version of SubGen (supports: {', '.join(sorted(COMPATIBLE_VERSIONS))}). "
+                f"Some data may be lost or misinterpreted.",
+                UserWarning,
+                stacklevel=2,
+            )
         segments = [_segment_from_dict(s) for s in data.get("segments", [])]
         style = StyleProfile.from_dict(data["style"]) if "style" in data else StyleProfile()
         metadata = ProjectMetadata.from_dict(data["metadata"]) if "metadata" in data else ProjectMetadata()
@@ -128,7 +150,10 @@ class SubtitleProject:
         return cls(segments=segments, style=style, metadata=metadata, state=state)
 
     def save(self, path: Path) -> None:
-        """Save project to a .subgen JSON file.
+        """Save project to a .subgen JSON file atomically.
+
+        Writes to a temp file first, then uses os.replace() to atomically
+        move to the final path. This prevents data corruption from interrupted writes.
 
         Args:
             path: Output file path.
@@ -137,7 +162,23 @@ class SubtitleProject:
         if not self.metadata.created_at:
             self.metadata.created_at = self.metadata.modified_at
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(self.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+
+        content = json.dumps(self.to_dict(), ensure_ascii=False, indent=2)
+        tmp_fd, tmp_path = tempfile.mkstemp(
+            dir=str(path.parent),
+            prefix=".subgen_",
+            suffix=".tmp",
+        )
+        try:
+            with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                f.write(content)
+            os.replace(tmp_path, str(path))
+        except BaseException:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
 
     @classmethod
     def load(cls, path: Path) -> "SubtitleProject":

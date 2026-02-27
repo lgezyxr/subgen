@@ -3,6 +3,7 @@
 This module contains no terminal/UI output. All progress is reported via callbacks.
 """
 
+import copy
 import shutil
 from pathlib import Path
 from typing import Callable, Dict, Any, List, Optional
@@ -115,6 +116,10 @@ class SubGenEngine:
         # --- Obtain segments (cache / embedded / transcribe) ---
         segments, source_from = self._obtain_segments(input_path, cfg, final_source_lang, final_target_lang, force_transcribe)
 
+        # Re-read source_lang after _obtain_segments() — it may have been
+        # updated from cache or embedded track metadata.
+        final_source_lang = cfg['output'].get('source_language', 'auto')
+
         if not segments:
             # Return empty project
             return self._build_project([], cfg, input_path, final_source_lang, final_target_lang)
@@ -152,7 +157,8 @@ class SubGenEngine:
                     progress_callback=lambda n: self.on_progress('proofreading', n, len(segments)),
                 )
 
-        return self._build_project(segments, cfg, input_path, final_source_lang, final_target_lang)
+        return self._build_project(segments, cfg, input_path, final_source_lang, final_target_lang,
+                                    source_from=source_from)
 
     def transcribe(self, input_path: Path, **options: Any) -> SubtitleProject:
         """Transcribe only (no translation).
@@ -241,8 +247,9 @@ class SubGenEngine:
         self.on_progress('exporting', 0, 1)
 
         effective_style = style or project.style
-        # Build a minimal config for generate_subtitle
-        export_cfg = dict(self.config)
+        # Build a minimal config for generate_subtitle — use deepcopy
+        # to avoid mutating self.config['output'] when setting format.
+        export_cfg = copy.deepcopy(self.config)
         export_cfg.setdefault('output', {})
         export_cfg['output']['format'] = format
 
@@ -328,20 +335,23 @@ class SubGenEngine:
         audio_path = extract_audio(input_path, cfg)
         self.on_progress('extracting', 1, 1)
 
-        self.on_progress('transcribing', 0, 1)
-        segments = transcribe_audio(audio_path, cfg)
-        self.on_progress('transcribing', 1, 1)
-
-        if not segments:
-            return [], 'transcribed'
-
-        # Save to cache
         try:
-            self._save_cache(input_path, segments, cfg)
-        except Exception as e:
-            log_debug("engine: cache save failed: %s", e)
+            self.on_progress('transcribing', 0, 1)
+            segments = transcribe_audio(audio_path, cfg)
+            self.on_progress('transcribing', 1, 1)
 
-        return segments, 'transcribed'
+            if not segments:
+                return [], 'transcribed'
+
+            # Save to cache
+            try:
+                self._save_cache(input_path, segments, cfg)
+            except Exception as e:
+                log_debug("engine: cache save failed: %s", e)
+
+            return segments, 'transcribed'
+        finally:
+            cleanup_temp_files(cfg)
 
     def _try_embedded(
         self, input_path: Path, cfg: Dict[str, Any],
@@ -435,7 +445,7 @@ class SubGenEngine:
     def _build_project(
         self, segments: List[Segment], cfg: Dict[str, Any],
         input_path: Path, source_lang: str, target_lang: str,
-        is_proofread: bool = False,
+        is_proofread: bool = False, source_from: str = '',
     ) -> SubtitleProject:
         """Build a SubtitleProject from segments and config."""
         style = load_style(cfg)
@@ -446,6 +456,7 @@ class SubGenEngine:
             whisper_provider=cfg['whisper'].get('provider', 'local'),
             llm_provider=cfg.get('translation', {}).get('provider', ''),
             llm_model=cfg.get('translation', {}).get('model', ''),
+            source_from=source_from,
         )
         has_translation = any(getattr(s, 'translated', '') for s in segments)
         state = ProjectState(

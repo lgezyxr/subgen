@@ -249,7 +249,11 @@ class ComponentManager:
         """Detect current platform.
 
         Returns:
-            One of: windows, linux-x64, macos-x64, macos-arm64
+            One of: windows, linux-x64, linux-arm64, linux-armv7l,
+                    macos-x64, macos-arm64
+
+        Raises:
+            RuntimeError: If the architecture is not supported.
         """
         system = platform.system().lower()
         machine = platform.machine().lower()
@@ -261,7 +265,21 @@ class ComponentManager:
                 return "macos-arm64"
             return "macos-x64"
         else:
-            return "linux-x64"
+            # Linux — detect architecture
+            arch_map = {
+                "x86_64": "linux-x64",
+                "amd64": "linux-x64",
+                "aarch64": "linux-arm64",
+                "arm64": "linux-arm64",
+                "armv7l": "linux-armv7l",
+            }
+            linux_platform = arch_map.get(machine)
+            if linux_platform is None:
+                raise RuntimeError(
+                    f"Unsupported architecture: {machine} on {system}. "
+                    f"Supported Linux architectures: x86_64, aarch64, armv7l"
+                )
+            return linux_platform
 
     def _refresh_registry(self) -> Dict[str, Any]:
         """Load component registry from local cache or builtin fallback.
@@ -305,9 +323,24 @@ class ComponentManager:
         return {"components": {}}
 
     def _save_installed(self, data: Dict[str, Any]) -> None:
-        """Save installed components state."""
-        with open(self.installed_path, "w") as f:
-            json.dump(data, f, indent=2)
+        """Save installed components state atomically."""
+        import tempfile
+        tmp_fd, tmp_path = tempfile.mkstemp(
+            dir=str(self.installed_path.parent),
+            prefix=".installed_",
+            suffix=".tmp",
+        )
+        try:
+            with os.fdopen(tmp_fd, "w") as f:
+                json.dump(data, f, indent=2)
+            os.replace(tmp_path, str(self.installed_path))
+        except BaseException:
+            # Clean up temp file on failure
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
 
     def list_available(self) -> List[Component]:
         """List all available components for current platform."""
@@ -408,8 +441,14 @@ class ComponentManager:
         is_archive = url.endswith((".zip", ".tar.gz", ".tar.xz", ".tgz"))
 
         if is_archive:
-            # Download to temp file then extract
-            tmp_file = self.base_dir / "tmp_download"
+            # Download to unique temp file then extract — avoids collisions
+            # when multiple concurrent downloads are in progress.
+            import tempfile
+            tmp_fd, tmp_file_str = tempfile.mkstemp(
+                prefix="subgen_download_", dir=str(self.base_dir)
+            )
+            os.close(tmp_fd)
+            tmp_file = Path(tmp_file_str)
             try:
                 self._download(url, tmp_file, on_progress=on_progress, sha256=expected_sha)
                 # Extract safely (validate paths to prevent zip-slip)
