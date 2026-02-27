@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 """PyInstaller spec for SubGen."""
 
-from PyInstaller.utils.hooks import collect_data_files
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 block_cipher = None
 
@@ -40,6 +40,7 @@ a = Analysis(
         'yaml',
         'rich',
         'rich._unicode_data',
+        *collect_submodules('rich._unicode_data'),
         'click',
         'openai',
         'groq',
