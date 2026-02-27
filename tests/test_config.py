@@ -54,3 +54,14 @@ whisper:
         assert cfg['output']['format'] == 'srt'
         # Other whisper defaults should also be preserved
         assert cfg['whisper']['local_model'] == 'large-v3'
+
+    def test_load_default_config_yml_extension(self, tmp_path, monkeypatch):
+        """Default config discovery should also support config.yml."""
+        config_file = tmp_path / "config.yml"
+        config_file.write_text("""
+translation:
+  provider: claude
+""")
+        monkeypatch.chdir(tmp_path)
+        cfg = load_config()
+        assert cfg["translation"]["provider"] == "claude"

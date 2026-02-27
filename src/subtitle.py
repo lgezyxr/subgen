@@ -36,7 +36,7 @@ def generate_subtitle(
     if format_type == 'srt':
         _generate_srt(segments, output_path, bilingual)
     elif format_type == 'ass':
-        _generate_ass(segments, output_path, bilingual, config, resolved_style)
+        _generate_ass(segments, output_path, bilingual, resolved_style)
     elif format_type == 'vtt':
         _generate_vtt(segments, output_path, bilingual)
     else:
@@ -105,9 +105,9 @@ def _generate_srt(segments: List[Segment], output_path: Path, bilingual: bool) -
         lines.append(f"{_format_time_srt(seg.start)} --> {_format_time_srt(seg.end)}")
 
         if bilingual and seg.text and seg.translated:
-            # Bilingual: translation on top, original below
-            lines.append(seg.translated)
+            # Bilingual: original on top, translation below
             lines.append(seg.text)
+            lines.append(seg.translated)
         else:
             lines.append(content)
 
@@ -144,7 +144,6 @@ def _generate_ass(
     segments: List[Segment],
     output_path: Path,
     bilingual: bool,
-    config: Dict[str, Any],
     style: Optional[StyleProfile] = None,
 ) -> None:
     """Generate ASS format subtitle (with styles)"""
@@ -309,20 +308,25 @@ def load_srt(srt_path: Path, bilingual: bool = False) -> List:
 
     segments = []
 
-    # Parse SRT format
-    # Each entry: index\ntimestamp\ntext\n\n
+    # Parse SRT blocks (with or without numeric index lines).
     blocks = re.split(r'\n\n+', content.strip())
+    timestamp_pattern = re.compile(
+        r'(\d{2}):(\d{2}):(\d{2})[,.](\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})[,.](\d{3})'
+    )
 
     for block in blocks:
         lines = block.strip().split('\n')
-        if len(lines) < 3:
+        if len(lines) < 2:
             continue
 
-        # Parse timestamp line: 00:00:01,000 --> 00:00:04,000
-        timestamp_match = re.match(
-            r'(\d{2}):(\d{2}):(\d{2})[,.](\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})[,.](\d{3})',
-            lines[1]
-        )
+        timestamp_match = None
+        timestamp_line_idx = -1
+        for idx, line in enumerate(lines):
+            timestamp_match = timestamp_pattern.match(line.strip())
+            if timestamp_match:
+                timestamp_line_idx = idx
+                break
+
         if not timestamp_match:
             continue
 
@@ -331,7 +335,9 @@ def load_srt(srt_path: Path, bilingual: bool = False) -> List:
         end = int(h2) * 3600 + int(m2) * 60 + int(s2) + int(ms2) / 1000
 
         # Get text (may be multiple lines)
-        text_lines = lines[2:]
+        text_lines = lines[timestamp_line_idx + 1:]
+        if not text_lines:
+            continue
         text = '\n'.join(text_lines)
 
         if bilingual and '\n' in text:
