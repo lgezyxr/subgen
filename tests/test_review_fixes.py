@@ -615,7 +615,7 @@ class TestProjectVersionCheck:
         }
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            proj = SubtitleProject.from_dict(data)
+            SubtitleProject.from_dict(data)
             assert len(w) == 0
 
     def test_compatible_version_01(self):
@@ -627,7 +627,7 @@ class TestProjectVersionCheck:
         }
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            proj = SubtitleProject.from_dict(data)
+            SubtitleProject.from_dict(data)
             assert len(w) == 0
 
     def test_incompatible_version_warns(self):
@@ -639,7 +639,7 @@ class TestProjectVersionCheck:
         }
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            proj = SubtitleProject.from_dict(data)
+            SubtitleProject.from_dict(data)
             assert len(w) == 1
             assert "9.9" in str(w[0].message)
             assert "incompatible" in str(w[0].message).lower()
@@ -652,7 +652,7 @@ class TestProjectVersionCheck:
         }
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            proj = SubtitleProject.from_dict(data)
+            SubtitleProject.from_dict(data)
             assert len(w) == 1
             assert "unknown" in str(w[0].message)
 
@@ -670,7 +670,7 @@ class TestProjectVersionCheck:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            proj = SubtitleProject.load(fpath)
+            SubtitleProject.load(fpath)
             assert len(w) == 1
             assert "99.0" in str(w[0].message)
 
