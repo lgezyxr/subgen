@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from .auth.copilot import copilot_login, CopilotAuthError
+from .config import is_bundled
 from .hardware import detect_hardware, recommend_whisper_config, print_hardware_summary, get_install_instructions
 
 
@@ -191,7 +192,7 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
 
     # Check if dependencies are installed
     install_cmd = get_install_instructions(hw)
-    if install_cmd:
+    if install_cmd and not is_bundled():
         print("📦 To use local processing, install:")
         print(f"   {install_cmd}")
         print()
@@ -207,11 +208,17 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
     }
 
     # Step 1: Whisper provider
-    # Mark recommended provider
-    for key in WHISPER_PROVIDERS:
-        WHISPER_PROVIDERS[key]["recommended"] = (key == rec_provider)
+    # Filter providers for exe mode (no local/mlx)
+    if is_bundled():
+        available_providers = {k: v for k, v in WHISPER_PROVIDERS.items() if k in ("cpp", "groq", "openai")}
+    else:
+        available_providers = WHISPER_PROVIDERS
 
-    print_provider_options(WHISPER_PROVIDERS, "📢 Speech Recognition (Whisper)")
+    # Mark recommended provider
+    for key in available_providers:
+        available_providers[key]["recommended"] = (key == rec_provider)
+
+    print_provider_options(available_providers, "📢 Speech Recognition (Whisper)")
 
     # Show auto-detected recommendation
     print(f"  💡 Auto-detected recommendation: {rec_provider}")
@@ -221,10 +228,10 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
         print("     (Apple Silicon detected)")
     print()
 
-    whisper_keys = list(WHISPER_PROVIDERS.keys())
+    whisper_keys = list(available_providers.keys())
     whisper_choice = get_choice("Select speech recognition", len(whisper_keys))
     whisper_provider = whisper_keys[whisper_choice - 1]
-    whisper_info = WHISPER_PROVIDERS[whisper_provider]
+    whisper_info = available_providers[whisper_provider]
 
     config["whisper"]["provider"] = whisper_provider
     print(f"\n  ✅ Selected: {whisper_info['name']}")
@@ -441,7 +448,8 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
     print(f"  Target:  {config['output']['target_language']}")
     print("\n  Config saved to: config.yaml")
     print("\n  Try it out:")
-    print("    python subgen.py your-video.mp4\n")
+    run_cmd = "subgen run" if is_bundled() else "python subgen.py run"
+    print(f"    {run_cmd} your-video.mp4\n")
 
     return config
 

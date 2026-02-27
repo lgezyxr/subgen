@@ -1,6 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
 """PyInstaller spec for SubGen."""
 
+from PyInstaller.utils.hooks import collect_data_files
+
 block_cipher = None
 
 a = Analysis(
@@ -10,6 +12,7 @@ a = Analysis(
     datas=[
         ('rules/', 'rules/'),
         ('config.example.yaml', '.'),
+        *collect_data_files('rich'),
     ],
     hiddenimports=[
         # src modules
@@ -36,6 +39,7 @@ a = Analysis(
         # Third-party
         'yaml',
         'rich',
+        'rich._unicode_data',
         'click',
         'openai',
         'groq',

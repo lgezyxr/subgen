@@ -118,3 +118,8 @@ def get_bundled_path(relative: str) -> Path:
     # PyInstaller sets sys._MEIPASS to the temp extraction dir
     base = getattr(sys, "_MEIPASS", Path(__file__).parent.parent)
     return Path(base) / relative
+
+
+def is_bundled() -> bool:
+    """Check if running as PyInstaller bundle."""
+    return getattr(sys, '_MEIPASS', None) is not None
