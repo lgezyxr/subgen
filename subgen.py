@@ -236,7 +236,7 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
         from src.engine import SubGenEngine
         engine = SubGenEngine(cfg)
         engine.export(project, output_path, format=cfg['output'].get('format', 'srt'), style=style)
-        console.print(f"\n[bold green]✅ Done![/bold green]")
+        console.print("\n[bold green]✅ Done![/bold green]")
         console.print(f"Subtitle file: [cyan]{output_path}[/cyan]")
         if save_project:
             project.save(Path(save_project))
@@ -300,7 +300,6 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
         console.print(f"[dim]Proofreading segments with provider: {cfg.get('translation', {}).get('provider', 'openai')}[/dim]")
 
     # --- Build progress callback using rich ---
-    progress_state = {}
 
     def make_rich_progress():
         return Progress(
@@ -324,18 +323,21 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
         with make_rich_progress() as progress:
             current_task = [None]
             current_stage = [None]
+            current_task_total = [None]
 
             def on_progress(stage: str, current: int, total: int) -> None:
                 labels = _stage_labels.get(stage, (f'[cyan]{stage}...', f'[green]✓ {stage}'))
                 if stage != current_stage[0]:
                     # Complete previous task
                     if current_task[0] is not None:
-                        prev_labels = _stage_labels.get(current_stage[0], ('', f'[green]✓ Done'))
-                        progress.update(current_task[0], description=prev_labels[1])
+                        prev_labels = _stage_labels.get(current_stage[0], ('', '[green]✓ Done'))
+                        prev_total = current_task_total[0] or 1
+                        progress.update(current_task[0], description=prev_labels[1], completed=prev_total, total=prev_total)
                         progress.stop_task(current_task[0])
                     # Start new task
                     current_stage[0] = stage
                     task_total = total if total > 1 else None
+                    current_task_total[0] = task_total
                     current_task[0] = progress.add_task(labels[0], total=task_total)
                 else:
                     if total > 1:
@@ -343,7 +345,7 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
 
                 # If this is the final update for the stage
                 if total > 0 and current >= total and total <= 1:
-                    progress.update(current_task[0], description=labels[1])
+                    progress.update(current_task[0], description=labels[1], completed=total, total=total)
                     progress.stop_task(current_task[0])
 
             engine = SubGenEngine(cfg, on_progress=on_progress)
@@ -370,7 +372,8 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
             # Complete last task
             if current_task[0] is not None:
                 labels = _stage_labels.get(current_stage[0], ('', '[green]✓ Done'))
-                progress.update(current_task[0], description=labels[1])
+                last_total = current_task_total[0] or 1
+                progress.update(current_task[0], description=labels[1], completed=last_total, total=last_total)
                 progress.stop_task(current_task[0])
 
             # Embed in video
@@ -379,7 +382,7 @@ def run_subtitle_generation(input_path, output, source_lang, target_lang, no_tra
                 task5 = progress.add_task("[cyan]Embedding subtitles...", total=None)
                 video_output = input_path.with_stem(input_path.stem + '_subbed')
                 engine.export_video(project, input_path, video_output, embed_mode='hard')
-                progress.update(task5, description="[green]✓ Video generated")
+                progress.update(task5, description="[green]✓ Video generated", completed=1, total=1)
                 progress.stop_task(task5)
 
         console.print("\n[bold green]✅ Done![/bold green]")
