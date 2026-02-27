@@ -73,7 +73,8 @@ def transcribe_cpp(
 
         debug("transcribe_cpp: running %s", " ".join(cmd))
 
-        # Execute
+        # Execute — use communicate() to avoid deadlock from sequential
+        # stdout/stderr reads when pipe buffers fill up.
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
@@ -81,19 +82,18 @@ def transcribe_cpp(
             text=True,
         )
 
-        # Read stderr for progress
-        stderr_lines: List[str] = []
-        for line in process.stderr:  # type: ignore[union-attr]
-            stderr_lines.append(line)
-            if "progress =" in line and on_progress:
-                try:
-                    pct = int(line.split("=")[1].strip().rstrip("%"))
-                    on_progress(pct, 100)
-                except (ValueError, IndexError):
-                    pass
+        stdout, stderr = process.communicate()
 
-        stdout = process.stdout.read()  # type: ignore[union-attr]
-        process.wait()
+        # Parse stderr for progress reporting
+        stderr_lines = stderr.splitlines(keepends=True) if stderr else []
+        if on_progress:
+            for line in stderr_lines:
+                if "progress =" in line:
+                    try:
+                        pct = int(line.split("=")[1].strip().rstrip("%"))
+                        on_progress(pct, 100)
+                    except (ValueError, IndexError):
+                        pass
 
         if process.returncode != 0:
             raise RuntimeError(
@@ -128,37 +128,82 @@ def _parse_whisper_json(json_str: str) -> List[Segment]:
 
     Returns:
         List of Segment objects.
+
+    Raises:
+        RuntimeError: If JSON is malformed or has unexpected schema.
     """
-    data = json.loads(json_str)
+    try:
+        data = json.loads(json_str)
+    except (json.JSONDecodeError, ValueError) as e:
+        raise RuntimeError(
+            f"Failed to parse whisper.cpp JSON output: {e}\n"
+            f"Raw output (first 500 chars): {json_str[:500]}"
+        ) from e
+
+    if not isinstance(data, dict):
+        raise RuntimeError(
+            f"Unexpected whisper.cpp output format: expected JSON object, "
+            f"got {type(data).__name__}"
+        )
+
+    transcription = data.get("transcription")
+    if transcription is None:
+        raise RuntimeError(
+            "Unexpected whisper.cpp output format: missing 'transcription' key. "
+            f"Available keys: {list(data.keys())}"
+        )
+
+    if not isinstance(transcription, list):
+        raise RuntimeError(
+            f"Unexpected whisper.cpp output format: 'transcription' should be a list, "
+            f"got {type(transcription).__name__}"
+        )
 
     segments: List[Segment] = []
-    for item in data.get("transcription", []):
-        start = _timestamp_to_seconds(item["timestamps"]["from"])
-        end = _timestamp_to_seconds(item["timestamps"]["to"])
-        text = item.get("text", "").strip()
+    for i, item in enumerate(transcription):
+        try:
+            if not isinstance(item, dict):
+                debug("transcribe_cpp: skipping non-dict item at index %d", i)
+                continue
 
-        if not text:
+            timestamps = item.get("timestamps")
+            if not isinstance(timestamps, dict) or "from" not in timestamps or "to" not in timestamps:
+                debug("transcribe_cpp: skipping item %d with missing/invalid timestamps", i)
+                continue
+
+            start = _timestamp_to_seconds(timestamps["from"])
+            end = _timestamp_to_seconds(timestamps["to"])
+            text = item.get("text", "").strip()
+
+            if not text:
+                continue
+
+            # Word-level timestamps
+            words: List[Word] = []
+            for token in item.get("tokens", []):
+                if not isinstance(token, dict):
+                    continue
+                if "timestamps" in token and token.get("text", "").strip():
+                    token_ts = token["timestamps"]
+                    if isinstance(token_ts, dict) and "from" in token_ts and "to" in token_ts:
+                        w_start = _timestamp_to_seconds(token_ts["from"])
+                        w_end = _timestamp_to_seconds(token_ts["to"])
+                        words.append(Word(
+                            text=token["text"].strip(),
+                            start=w_start,
+                            end=w_end,
+                        ))
+
+            segments.append(Segment(
+                start=start,
+                end=end,
+                text=text,
+                words=words,
+                no_speech_prob=item.get("no_speech_prob", 0.0),
+            ))
+        except (KeyError, ValueError, TypeError) as e:
+            debug("transcribe_cpp: skipping malformed segment at index %d: %s", i, e)
             continue
-
-        # Word-level timestamps
-        words: List[Word] = []
-        for token in item.get("tokens", []):
-            if "timestamps" in token and token.get("text", "").strip():
-                w_start = _timestamp_to_seconds(token["timestamps"]["from"])
-                w_end = _timestamp_to_seconds(token["timestamps"]["to"])
-                words.append(Word(
-                    text=token["text"].strip(),
-                    start=w_start,
-                    end=w_end,
-                ))
-
-        segments.append(Segment(
-            start=start,
-            end=end,
-            text=text,
-            words=words,
-            no_speech_prob=item.get("no_speech_prob", 0.0),
-        ))
 
     return segments
 
