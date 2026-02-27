@@ -64,7 +64,42 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+      - name: Generate release body
+        id: body
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          cat > body.md << 'EOF'
+          ## 📦 Downloads
+
+          | Platform | File |
+          |----------|------|
+          | Windows x64 | `subgen-windows-x64.exe` |
+          | Linux x64 | `subgen-linux-x64` |
+          | macOS ARM (Apple Silicon) | `subgen-macos-arm64` |
+
+          ## 🚀 Quick Start
+
+          ```bash
+          # 1. Download the binary for your platform above
+          # 2. Run setup wizard
+          subgen init
+          # 3. Generate subtitles
+          subgen run your-video.mp4
+          ```
+
+          ## ✨ What's New in v0.2.0
+
+          - 🎨 **Style system** — Built-in presets (default/netflix/fansub/minimal) with full customization
+          - 📁 **Project files** — Save/load `.subgen` project files for iterative workflows
+          - 🔧 **Component system** — Lightweight exe (~20MB), on-demand download of whisper.cpp engine + models
+          - 🎙️ **whisper.cpp backend** — New `cpp` provider, zero PyTorch dependency, GPU accelerated
+          - 🩺 **`subgen doctor`** — Full environment diagnostic
+          - 📥 **`subgen install`** — Install whisper engine, models, FFmpeg with one command
+          - 🧙 **One-stop setup** — `subgen init` downloads everything you need
+
+          > ⚠️ Windows SmartScreen may flag the exe as untrusted (unsigned). Click "More info" → "Run anyway". Code signing coming soon.
+          EOF
       - uses: softprops/action-gh-release@v2
         with:
           files: artifacts/**/*
-          generate_release_notes: true
+          body_path: body.md
