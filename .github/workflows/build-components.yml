@@ -23,7 +23,7 @@ jobs:
           cuda: '12.6.3'
       - name: Build
         run: |
-          cmake -B build -DGGML_CUDA=ON
+          cmake -B build -DGGML_CUDA=ON -DBUILD_SHARED_LIBS=OFF
           cmake --build build --config Release -t whisper-cli
       - name: Package
         run: |
@@ -42,7 +42,7 @@ jobs:
           repository: ggml-org/whisper.cpp
       - name: Build
         run: |
-          cmake -B build
+          cmake -B build -DBUILD_SHARED_LIBS=OFF
           cmake --build build --config Release -t whisper-cli
       - name: Package
         run: |
@@ -64,13 +64,15 @@ jobs:
           cuda: '12.6.3'
       - name: Build
         run: |
-          cmake -B build -DGGML_CUDA=ON
+          cmake -B build -DGGML_CUDA=ON -DBUILD_SHARED_LIBS=OFF
           cmake --build build --config Release -t whisper-cli
       - name: Package
         shell: bash
         run: |
-          cp build/bin/Release/whisper-cli.exe whisper-cpp.exe
-          7z a whisper-cpp-cuda-windows-x64.zip whisper-cpp.exe
+          mkdir -p pkg
+          cp build/bin/Release/whisper-cli.exe pkg/whisper-cpp.exe
+          cp build/bin/Release/*.dll pkg/ 2>/dev/null || true
+          cd pkg && 7z a ../whisper-cpp-cuda-windows-x64.zip *
       - uses: actions/upload-artifact@v4
         with:
           name: whisper-cpp-cuda-windows-x64
@@ -84,13 +86,16 @@ jobs:
           repository: ggml-org/whisper.cpp
       - name: Build
         run: |
-          cmake -B build
+          cmake -B build -DBUILD_SHARED_LIBS=OFF
           cmake --build build --config Release -t whisper-cli
       - name: Package
         shell: bash
         run: |
-          cp build/bin/Release/whisper-cli.exe whisper-cpp.exe
-          7z a whisper-cpp-cpu-windows-x64.zip whisper-cpp.exe
+          mkdir -p pkg
+          cp build/bin/Release/whisper-cli.exe pkg/whisper-cpp.exe
+          # Copy any DLLs that may exist
+          cp build/bin/Release/*.dll pkg/ 2>/dev/null || true
+          cd pkg && 7z a ../whisper-cpp-cpu-windows-x64.zip *
       - uses: actions/upload-artifact@v4
         with:
           name: whisper-cpp-cpu-windows-x64
@@ -104,7 +109,7 @@ jobs:
           repository: ggml-org/whisper.cpp
       - name: Build
         run: |
-          cmake -B build -DGGML_METAL=ON
+          cmake -B build -DGGML_METAL=ON -DBUILD_SHARED_LIBS=OFF
           cmake --build build --config Release -t whisper-cli
       - name: Package
         run: |
@@ -123,7 +128,7 @@ jobs:
           repository: ggml-org/whisper.cpp
       - name: Build
         run: |
-          cmake -B build
+          cmake -B build -DBUILD_SHARED_LIBS=OFF
           cmake --build build --config Release -t whisper-cli
       - name: Package
         run: |
