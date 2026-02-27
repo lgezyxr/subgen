@@ -177,5 +177,5 @@ def _timestamp_to_seconds(ts: str) -> float:
     parts = ts.split(":")
     h = int(parts[0])
     m = int(parts[1])
-    s = float(parts[2])
+    s = float(parts[2].replace(",", "."))
     return h * 3600 + m * 60 + s
