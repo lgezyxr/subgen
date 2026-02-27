@@ -560,9 +560,10 @@ def install(component, variant, with_model):
     if component == 'whisper':
         console.print("\n🔍 Detecting hardware...")
         hw = detect_hardware()
-        if hw.has_nvidia_gpu and hw.has_cuda:
+        if hw.has_nvidia_gpu:
             engine_variant = "cuda"
-            console.print(f"  ✓ {hw.nvidia_gpu_name} ({hw.nvidia_vram_gb:.0f}GB VRAM)")
+            vram = f" ({hw.nvidia_vram_gb:.0f}GB VRAM)" if hw.nvidia_vram_gb else ""
+            console.print(f"  ✓ {hw.nvidia_gpu_name}{vram}")
         elif hw.is_apple_silicon:
             engine_variant = "metal"
             console.print("  ✓ Apple Silicon detected")

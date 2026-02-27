@@ -246,7 +246,7 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
         cm = ComponentManager()
 
         # Pick engine variant based on hardware
-        if hw.has_nvidia_gpu and hw.has_cuda:
+        if hw.has_nvidia_gpu:
             engine_variant = "cuda"
         elif hw.is_apple_silicon:
             engine_variant = "metal"
