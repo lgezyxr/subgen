@@ -254,13 +254,16 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
             engine_variant = "cpu"
 
         comp_id = f"whisper-cpp-{engine_variant}"
-        print(f"\n  📥 Downloading whisper.cpp engine ({engine_variant})...")
-        try:
-            cm.install(comp_id)
-            print("  ✅ Engine installed")
-        except Exception as e:
-            print(f"  ⚠️  Engine install failed: {e}")
-            print("  You can install later: subgen install whisper")
+        if cm.is_installed(comp_id):
+            print(f"\n  ✅ whisper.cpp engine ({engine_variant}) already installed")
+        else:
+            print(f"\n  📥 Downloading whisper.cpp engine ({engine_variant})...")
+            try:
+                cm.install(comp_id)
+                print("  ✅ Engine installed")
+            except Exception as e:
+                print(f"  ⚠️  Engine install failed: {e}")
+                print("  You can install later: subgen install whisper")
 
         # Recommend and download model
         if hw.has_nvidia_gpu and hw.nvidia_vram_gb and hw.nvidia_vram_gb >= 8:
@@ -279,13 +282,17 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
             dl_response = "y"
 
         if dl_response != "n":
-            print(f"  📥 Downloading Whisper {rec_model} model...")
-            try:
-                cm.install_model(rec_model)
-                print("  ✅ Model installed")
-            except Exception as e:
-                print(f"  ⚠️  Model install failed: {e}")
-                print(f"  You can install later: subgen install model {rec_model}")
+            model_comp_id = f"model-whisper-{rec_model}"
+            if cm.is_installed(model_comp_id):
+                print(f"  ✅ {rec_model} model already installed")
+            else:
+                print(f"  📥 Downloading Whisper {rec_model} model...")
+                try:
+                    cm.install_model(rec_model)
+                    print("  ✅ Model installed")
+                except Exception as e:
+                    print(f"  ⚠️  Model install failed: {e}")
+                    print(f"  You can install later: subgen install model {rec_model}")
 
         config["whisper"]["cpp_model"] = rec_model
         config["whisper"]["cpp_threads"] = 4
@@ -357,13 +364,23 @@ def run_setup_wizard(config_path: Optional[Path] = None) -> dict:
     if llm_info.get("requires_oauth"):
         oauth_type = llm_info["requires_oauth"]
         if oauth_type == "copilot":
-            success = setup_copilot_oauth()
-            if not success:
-                print("  Falling back to manual setup. Run 'subgen auth login copilot' later.")
+            from .auth.store import load_credentials
+            creds = load_credentials()
+            if creds.get("copilot", {}).get("access_token"):
+                print("  ✅ GitHub Copilot already authorized")
+            else:
+                success = setup_copilot_oauth()
+                if not success:
+                    print("  Falling back to manual setup. Run 'subgen auth login copilot' later.")
         elif oauth_type == "chatgpt":
-            success = setup_chatgpt_oauth()
-            if not success:
-                print("  Falling back to manual setup. Run 'subgen auth login chatgpt' later.")
+            from .auth.store import load_credentials
+            creds = load_credentials()
+            if creds.get("chatgpt", {}).get("access_token"):
+                print("  ✅ ChatGPT already authorized")
+            else:
+                success = setup_chatgpt_oauth()
+                if not success:
+                    print("  Falling back to manual setup. Run 'subgen auth login chatgpt' later.")
     elif llm_info.get("requires_key"):
         key = get_api_key(llm_info)
         config["llm"]["api_key"] = key
